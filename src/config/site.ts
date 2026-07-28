@@ -21,12 +21,23 @@ export const siteConfig = {
     { label: '关于', href: '/about/' },
   ],
   postsPerPage: 9,
+  reading: {
+    fontSize: 17,
+    lineHeight: 1.85,
+    contentWidth: 46,
+    paragraphIndent: true,
+    smoothScroll: true,
+  },
   comments: {
     enabled: true,
     repo: 'SuiYueMengHen/SuiYueMengHen.github.io',
     repoId: 'R_kgDOTl6_uw',
     category: 'General',
     categoryId: 'DIC_kwDOTl6_u84DCJhQ',
+    themes: {
+      light: 'https://cdn.jsdelivr.net/gh/SuiYueMengHen/SuiYueMengHen.github.io@main/public/giscus-latex-light.css',
+      dark: 'https://cdn.jsdelivr.net/gh/SuiYueMengHen/SuiYueMengHen.github.io@main/public/giscus-latex-dark.css',
+    },
   },
   analytics: { enabled: false, scriptUrl: '' },
 } as const;

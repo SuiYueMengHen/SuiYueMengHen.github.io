@@ -1,5 +1,14 @@
 ---
-import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import PostCard from '../../components/PostCard.astro';import { visiblePosts } from '../../lib/posts';const posts=visiblePosts(await getCollection('blog'));
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { formatDate, postSlug, readingMinutes, visiblePosts } from '../../lib/posts';
+const posts=visiblePosts(await getCollection('blog'));
 ---
-<BaseLayout title="全部文章" description="棱镜笔记的全部文章。"><header class="page-head shell"><p class="section-kicker">Contents / {posts.length}</p><h1 class="display">所有文章</h1><p>技术、创造与日常观察，依发表时间倒序排列。</p></header><section class="section"><div class="shell list">{posts.map((post,index)=><PostCard post={post} index={index}/>)}</div></section></BaseLayout>
-<style>.list{max-width:var(--measure)}</style>
+<BaseLayout title="全部文章" description="棱镜笔记的全部文章。">
+  <header class="page-head shell"><p class="section-kicker">Table of contents / {posts.length}</p><h1 class="display">目录</h1><p>技术、创造与日常观察。选择任意条目即可直接进入文章。</p></header>
+  <section class="contents-wrap"><div class="shell book-contents"><header><p>Prism Notes</p><h2>文章总目录</h2><span>依发表时间倒序编排</span></header><ol>{posts.map((post,index)=><li><a href={`/blog/${postSlug(post)}/`}><span class="chapter">第 {String(index+1).padStart(2,'0')} 篇</span><strong>{post.data.title}</strong><span class="leader" aria-hidden="true"></span><span class="page">{formatDate(post.data.publishDate)} · {readingMinutes(post.body)} min</span></a><p>{post.data.description}</p></li>)}</ol></div></section>
+</BaseLayout>
+<style>
+  .contents-wrap{padding:1rem 0 7rem}.book-contents{max-width:var(--measure);padding:clamp(1.5rem,5vw,3.5rem);border:1px solid var(--line-color);box-shadow:inset 0 0 0 6px var(--paper),inset 0 0 0 7px var(--soft-line)}.book-contents>header{text-align:center;padding-bottom:2rem;border-bottom:1px solid var(--ink)}.book-contents header p{margin:0;font:500 .7rem var(--font-sans);letter-spacing:.14em;text-transform:uppercase}.book-contents h2{margin:.35rem 0;font-size:2rem;font-weight:500}.book-contents header span{font-size:.86rem;color:var(--muted-ink);font-style:italic}.book-contents ol{margin:2rem 0 0;padding:0;list-style:none}.book-contents li{padding:.75rem 0;border-bottom:1px solid var(--soft-line)}.book-contents li>a{display:flex;align-items:baseline;gap:.65rem;text-decoration:none}.chapter{flex:0 0 auto;font-size:.8rem;color:var(--muted-ink)}.book-contents strong{font-size:1.12rem;font-weight:500}.leader{flex:1 1 auto;min-width:1rem;border-bottom:1px dotted var(--line-color);transform:translateY(-.22em)}.page{flex:0 0 auto;font:500 .7rem var(--font-sans);color:var(--muted-ink)}.book-contents li>p{margin:.3rem 0 0 4.2rem;color:var(--muted-ink);font-size:.9rem}
+  @media(max-width:620px){.book-contents{padding:1.5rem}.book-contents li>a{display:grid;grid-template-columns:auto 1fr}.leader{display:none}.page{grid-column:2}.book-contents li>p{margin-left:0}}
+</style>

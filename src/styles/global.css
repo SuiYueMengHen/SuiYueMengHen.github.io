@@ -1,7 +1,8 @@
 @import './tokens.css';
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; background: var(--paper); color: var(--ink); }
+html { scroll-behavior: smooth; background: var(--paper); color: var(--ink); -webkit-overflow-scrolling: touch; }
+html[data-smooth-scroll='false'] { scroll-behavior: auto; }
 body {
   margin: 0;
   min-width: 320px;
@@ -12,6 +13,7 @@ body {
   background: var(--paper);
   text-rendering: optimizeLegibility;
   font-kerning: normal;
+  overscroll-behavior-y: none;
 }
 a { color: inherit; text-decoration-thickness: .055em; text-underline-offset: .16em; }
 a:hover { color: var(--accent); }

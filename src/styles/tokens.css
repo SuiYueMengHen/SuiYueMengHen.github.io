@@ -14,6 +14,9 @@
   --font-mono: "Computer Modern Typewriter Text", "SFMono-Regular", Consolas, monospace;
   --measure: 46rem;
   --wide: 66rem;
+  --reader-font-size: 17px;
+  --reader-line-height: 1.85;
+  --paragraph-indent: 2em;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;

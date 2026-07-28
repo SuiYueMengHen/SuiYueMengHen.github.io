@@ -1,0 +1,12 @@
+<script>
+  const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  let current=scrollY;let target=scrollY;let frame=0;let internal=false;
+  const clamp=(value:number)=>Math.max(0,Math.min(value,document.documentElement.scrollHeight-innerHeight));
+  const enabled=()=>document.documentElement.dataset.smoothScroll!=='false'&&!reduceMotion.matches&&matchMedia('(pointer:fine)').matches;
+  const tick=()=>{const distance=target-current;current+=distance*.14;internal=true;scrollTo(0,current);internal=false;if(Math.abs(distance)>0.5){frame=requestAnimationFrame(tick)}else{current=target;scrollTo(0,target);frame=0}};
+  addEventListener('wheel',(event)=>{if(!enabled()||event.ctrlKey||event.defaultPrevented)return;const origin=event.target as Element|null;if(origin?.closest('pre,textarea,input,select,[data-native-scroll]'))return;event.preventDefault();const unit=event.deltaMode===1?18:event.deltaMode===2?innerHeight:1;target=clamp(target+event.deltaY*unit);if(!frame){current=scrollY;frame=requestAnimationFrame(tick)}},{passive:false});
+  addEventListener('scroll',()=>{if(!internal&&!frame){current=scrollY;target=scrollY}},{passive:true});
+  const cancel=()=>{if(frame)cancelAnimationFrame(frame);frame=0;current=scrollY;target=scrollY};
+  addEventListener('touchstart',cancel,{passive:true});addEventListener('keydown',(event)=>{if(['Home','End','PageUp','PageDown','ArrowUp','ArrowDown',' '].includes(event.key))cancel()});
+  window.addEventListener('reader-settings-change',cancel);
+</script>
