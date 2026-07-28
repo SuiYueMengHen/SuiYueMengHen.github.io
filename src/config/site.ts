@@ -10,7 +10,7 @@ export const siteConfig = {
     github: 'https://github.com/SuiYueMengHen',
   },
   hero: {
-    eyebrow: 'PERSONAL FIELD NOTES · 2026',
+    eyebrow: 'A personal journal of technology, creation & observation',
     title: '把复杂世界，\n折射成清晰的文字。',
     introduction: '关于技术、创造与日常观察的个人写作空间。慢一点思考，认真地记录。',
   },

@@ -4,6 +4,8 @@
 
 基于 Astro、Markdown 和 Pagefind 构建的个人静态博客，部署于 GitHub Pages。文章、图片、设置和主题源码全部保存在本仓库。
 
+站点采用极简 LaTeX 论文风格，本地打包 Computer Modern 字体，并通过 KaTeX 支持行内公式与块级公式。
+
 ## 快速开始
 
 ```bash
@@ -49,6 +51,18 @@ canonical: "https://example.com/original" # 可选
 ```
 
 运行 `npm run dev` 可以预览草稿。生产构建会自动排除 `draft: true` 的文章。
+
+### 插入数学公式
+
+Markdown 中使用标准 LaTeX 语法。行内公式写为 `$E = mc^2$`，块级公式写为：
+
+```tex
+$$
+\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
+$$
+```
+
+公式由 KaTeX 在构建阶段渲染，同时输出可访问的 MathML，不需要浏览器运行额外脚本。
 
 ### 3. 发布
 

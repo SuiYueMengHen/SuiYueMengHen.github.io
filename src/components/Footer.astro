@@ -2,19 +2,13 @@
 import { siteConfig } from '../config/site';
 ---
 <footer class="footer">
-  <div class="shell footer-grid">
-    <div><p class="footer-mark">△</p><h2>继续阅读，<br />保持好奇。</h2></div>
-    <div class="footer-links">
-      <p class="section-kicker">Stay in the spectrum</p>
-      <a class="button" href="/rss.xml">通过 RSS 订阅 <span aria-hidden="true">↗</span></a>
-      <a href={siteConfig.author.github} rel="me">GitHub / {siteConfig.author.name}</a>
-    </div>
+  <div class="shell colophon">
+    <p class="ornament" aria-hidden="true">⁂</p>
+    <p><em>{siteConfig.name}</em> — {siteConfig.description}</p>
+    <nav aria-label="页脚导航"><a href="/rss.xml">RSS</a><span>·</span><a href={siteConfig.author.github} rel="me">GitHub</a><span>·</span><a href="/archive/">文章索引</a></nav>
+    <p class="legal">© {new Date().getFullYear()} {siteConfig.author.name} · Typeset with Computer Modern · Built with Astro</p>
   </div>
-  <div class="shell legal"><span>© {new Date().getFullYear()} {siteConfig.author.name}</span><span>以 Astro 与文字构成</span></div>
 </footer>
 <style>
-  .footer { border-top: var(--line); padding-top: clamp(4rem, 8vw, 8rem); background: var(--yellow); color: #151514; }
-  :global([data-theme='dark']) .footer { background: #d5b42c; }
-  .footer-grid { display: grid; grid-template-columns: 7fr 5fr; gap: 2rem; padding-bottom: 5rem; }.footer h2 { margin: 0; font-size: clamp(3rem, 8vw, 7rem); line-height: .9; letter-spacing: -.06em; }.footer-mark { margin: 0 0 2rem; font-size: 3rem; }.footer-links { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 1.5rem; }.legal { display: flex; justify-content: space-between; gap: 1rem; padding-block: 1.25rem; border-top: 1px solid #151514; font: .7rem var(--font-mono); text-transform: uppercase; }
-  @media (max-width:760px) { .footer-grid { grid-template-columns: 1fr; }.legal { flex-direction: column; } }
+  .footer{border-top:1px solid var(--line-color);padding:4rem 0 2.5rem;text-align:center}.colophon{max-width:var(--measure)}.ornament{margin:0 0 1.5rem;font-size:1.4rem}.colophon>p:not(.legal){max-width:34rem;margin:0 auto 1.5rem}.footer nav{display:flex;justify-content:center;gap:.8rem;font:500 .8rem var(--font-sans)}.footer nav a{min-height:44px;display:inline-flex;align-items:center}.footer nav span{align-self:center}.legal{margin:2rem 0 0;color:var(--muted-ink);font:500 .68rem var(--font-sans);letter-spacing:.06em;text-transform:uppercase}
 </style>

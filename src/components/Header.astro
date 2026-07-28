@@ -5,7 +5,7 @@ const path = Astro.url.pathname;
 <header class="site-header">
   <div class="shell header-inner">
     <a class="brand" href="/" aria-label={`${siteConfig.name}首页`}>
-      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><path d="M17 2 31 29H3L17 2Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="m17 2 2 18 12 9" fill="none" stroke="var(--red)" stroke-width="3"/></svg>
+      <span class="mark" aria-hidden="true">P<span>N</span></span>
       <span><b>{siteConfig.name}</b><small>{siteConfig.englishName}</small></span>
     </a>
     <nav id="site-nav" aria-label="主导航">
@@ -13,40 +13,22 @@ const path = Astro.url.pathname;
       <a href="/search/">搜索</a>
     </nav>
     <div class="header-actions">
-      <button id="theme-toggle" class="icon-button" type="button" aria-label="切换明暗主题">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-      <button id="menu-toggle" class="icon-button menu-button" type="button" aria-label="打开菜单" aria-controls="site-nav" aria-expanded="false">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 7h18M3 17h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      </button>
+      <button id="theme-toggle" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题"><span aria-hidden="true">◐</span></button>
+      <button id="menu-toggle" class="icon-button menu-button" type="button" aria-label="打开菜单" aria-controls="site-nav" aria-expanded="false"><span aria-hidden="true">≡</span></button>
     </div>
   </div>
 </header>
 <script>
-  const themeButton = document.querySelector<HTMLButtonElement>('#theme-toggle');
-  themeButton?.addEventListener('click', () => {
-    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    localStorage.setItem('prism-theme', next);
-  });
-  const menuButton = document.querySelector<HTMLButtonElement>('#menu-toggle');
-  const nav = document.querySelector<HTMLElement>('#site-nav');
-  menuButton?.addEventListener('click', () => {
-    const open = menuButton.getAttribute('aria-expanded') === 'true';
-    menuButton.setAttribute('aria-expanded', String(!open));
-    menuButton.setAttribute('aria-label', open ? '打开菜单' : '关闭菜单');
-    nav?.classList.toggle('is-open', !open);
-  });
+  const themeButton=document.querySelector<HTMLButtonElement>('#theme-toggle');
+  themeButton?.addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('prism-theme',next)});
+  const menuButton=document.querySelector<HTMLButtonElement>('#menu-toggle');const nav=document.querySelector<HTMLElement>('#site-nav');
+  menuButton?.addEventListener('click',()=>{const open=menuButton.getAttribute('aria-expanded')==='true';menuButton.setAttribute('aria-expanded',String(!open));menuButton.setAttribute('aria-label',open?'打开菜单':'关闭菜单');nav?.classList.toggle('is-open',!open)});
 </script>
 <style>
-  .site-header { position: sticky; top: 0; z-index: 100; border-bottom: var(--line); background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(14px); }
-  .header-inner { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-  .brand { display: flex; align-items: center; gap: .65rem; text-decoration: none; line-height: 1; }
-  .brand span { display: grid; gap: .3rem; }.brand small { font: .62rem var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
-  nav { display: flex; align-items: center; gap: 1.6rem; } nav a { min-height: 44px; display: grid; place-items: center; font-size: .9rem; font-weight: 700; text-decoration: none; position: relative; }
-  nav a::after { content: ''; position: absolute; inset: auto 0 6px; height: 3px; background: var(--red); transform: scaleX(0); transform-origin: left; transition: transform .2s ease; }
-  nav a:hover::after, nav a[aria-current='page']::after { transform: scaleX(1); }
-  .header-actions { display: flex; gap: .25rem; }.icon-button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; color: inherit; background: transparent; cursor: pointer; }.icon-button:hover { background: var(--ink); color: var(--paper); }
-  .menu-button { display: none; }
-  @media (max-width: 760px) { .menu-button { display: grid; } nav { display: none; position: absolute; left: 0; right: 0; top: 76px; padding: 1rem; flex-direction: column; align-items: stretch; background: var(--paper); border-bottom: var(--line); } nav.is-open { display: flex; } nav a { font-size: 1.25rem; } }
+  .site-header{position:sticky;top:0;z-index:100;border-bottom:1px solid var(--soft-line);background:color-mix(in srgb,var(--paper) 94%,transparent);backdrop-filter:blur(10px)}
+  .header-inner{min-height:66px;display:flex;align-items:center;justify-content:space-between;gap:1rem}.brand{display:flex;align-items:center;gap:.7rem;text-decoration:none;line-height:1}.brand>span:last-child{display:grid;gap:.25rem}.brand b{font-weight:500}.brand small{font:500 .62rem var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted-ink)}
+  .mark{position:relative;width:35px;height:35px;display:grid;place-items:center;border:1px solid var(--ink);border-radius:50%;font-style:italic;font-size:1.05rem}.mark span{position:absolute;font-size:.68rem;right:4px;bottom:2px}
+  nav{display:flex;align-items:center;gap:1.35rem}nav a{min-height:44px;display:grid;place-items:center;font:500 .82rem var(--font-sans);text-decoration:none;position:relative}nav a[aria-current='page']::after{content:'';position:absolute;left:0;right:0;bottom:7px;border-top:1px solid currentColor}
+  .header-actions{display:flex}.icon-button{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;color:inherit;cursor:pointer;font-size:1.25rem}.icon-button:hover{color:var(--accent)}.menu-button{display:none}
+  @media(max-width:760px){.menu-button{display:grid}nav{display:none;position:absolute;left:0;right:0;top:66px;padding:1rem 1.25rem 1.5rem;flex-direction:column;align-items:stretch;background:var(--paper);border-bottom:1px solid var(--line-color)}nav.is-open{display:flex}nav a{font-size:1rem}}
 </style>

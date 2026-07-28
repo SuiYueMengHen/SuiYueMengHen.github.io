@@ -20,6 +20,14 @@ test('文章页提供目录与代码复制', async ({ page }) => {
   await expect(page.getByRole('button', { name: '复制代码' })).toBeVisible();
 });
 
+test('LaTeX 公式同时输出可视公式与 MathML', async ({ page }) => {
+  await page.goto('/blog/designing-with-constraints/');
+  await expect(page.locator('.katex-display')).toHaveCount(1);
+  await expect(page.locator('.katex math').first()).toBeAttached();
+  const font = await page.locator('.prose').evaluate((element) => getComputedStyle(element).fontFamily);
+  expect(font).toContain('Computer Modern Serif');
+});
+
 test('移动端菜单可以打开', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', '仅移动端');
   await page.goto('/');

@@ -2,6 +2,10 @@
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { siteConfig } from '../config/site';
+import 'computer-modern/cmu-serif.css';
+import 'computer-modern/cmu-sans-serif.css';
+import 'computer-modern/cmu-typewriter-text.css';
+import 'katex/dist/katex.min.css';
 import '../styles/global.css';
 
 interface Props {
@@ -27,7 +31,7 @@ const jsonLd = type === 'article'
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#f3f0e8" />
+    <meta name="theme-color" content="#fbfaf6" />
     <link rel="canonical" href={canonicalUrl} />
     <link rel="alternate" type="application/rss+xml" title={`${siteConfig.name} RSS`} href="/rss.xml" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

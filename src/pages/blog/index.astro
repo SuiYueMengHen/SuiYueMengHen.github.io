@@ -1,12 +1,5 @@
 ---
-import { getCollection } from 'astro:content';
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import PostCard from '../../components/PostCard.astro';
-import { visiblePosts } from '../../lib/posts';
-const posts = visiblePosts(await getCollection('blog'));
+import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import PostCard from '../../components/PostCard.astro';import { visiblePosts } from '../../lib/posts';const posts=visiblePosts(await getCollection('blog'));
 ---
-<BaseLayout title="全部文章" description="棱镜笔记的全部文章。">
-  <header class="page-head shell"><p class="section-kicker">All notes / {posts.length}</p><h1 class="display">所有文章</h1><p>技术、创造与日常观察，按照时间排列在这里。</p></header>
-  <section class="section"><div class="shell posts-grid">{posts.map((post,index)=><PostCard post={post} index={index}/>)}</div></section>
-</BaseLayout>
-<style>.posts-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2rem}@media(max-width:980px){.posts-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.posts-grid{grid-template-columns:1fr}}</style>
+<BaseLayout title="全部文章" description="棱镜笔记的全部文章。"><header class="page-head shell"><p class="section-kicker">Contents / {posts.length}</p><h1 class="display">所有文章</h1><p>技术、创造与日常观察，依发表时间倒序排列。</p></header><section class="section"><div class="shell list">{posts.map((post,index)=><PostCard post={post} index={index}/>)}</div></section></BaseLayout>
+<style>.list{max-width:var(--measure)}</style>
