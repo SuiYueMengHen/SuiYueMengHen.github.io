@@ -24,9 +24,9 @@ export const siteConfig = {
   comments: {
     enabled: true,
     repo: 'SuiYueMengHen/SuiYueMengHen.github.io',
-    repoId: '',
+    repoId: 'R_kgDOTl6_uw',
     category: 'General',
-    categoryId: '',
+    categoryId: 'DIC_kwDOTl6_u84DCJhQ',
   },
   analytics: { enabled: false, scriptUrl: '' },
 } as const;
