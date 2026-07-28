@@ -1,0 +1,5 @@
+---
+import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import PostCard from '../../components/PostCard.astro';import { visiblePosts } from '../../lib/posts';
+export async function getStaticPaths(){const posts=visiblePosts(await getCollection('blog'));const categories=[...new Set(posts.map(p=>p.data.category))];return categories.map(category=>({params:{category},props:{category,posts:posts.filter(p=>p.data.category===category)}}))}const{category,posts}=Astro.props;
+---
+<BaseLayout title={`分类：${category}`}><header class="page-head shell"><p class="section-kicker">Category / {posts.length}</p><h1 class="display">{category}</h1></header><section class="section"><div class="shell cards">{posts.map((post:any,i:number)=><PostCard post={post} index={i}/>)}</div></section></BaseLayout><style>.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:2rem}@media(max-width:650px){.cards{grid-template-columns:1fr}}</style>

@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light;
+  --paper: #f3f0e8;
+  --surface: #fffdf6;
+  --ink: #151514;
+  --muted-ink: #5b5952;
+  --line-color: #151514;
+  --red: #ef3e24;
+  --blue: #2448ff;
+  --yellow: #f4cf35;
+  --focus: #2448ff;
+  --line: 1px solid var(--line-color);
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-serif: ui-serif, "Songti SC", "Noto Serif CJK SC", serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #111210;
+  --surface: #1b1c19;
+  --ink: #f1eee5;
+  --muted-ink: #b7b4aa;
+  --line-color: #5e5f59;
+  --red: #ff6048;
+  --blue: #7189ff;
+  --yellow: #f1cf54;
+  --focus: #f1cf54;
+}
+:root[data-theme='dark'] body { background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px); }
+:root[data-theme='dark'] body::before { mix-blend-mode: screen; opacity: .08; }

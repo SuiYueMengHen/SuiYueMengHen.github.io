@@ -1,0 +1,20 @@
+---
+import { siteConfig } from '../config/site';
+---
+<footer class="footer">
+  <div class="shell footer-grid">
+    <div><p class="footer-mark">△</p><h2>继续阅读，<br />保持好奇。</h2></div>
+    <div class="footer-links">
+      <p class="section-kicker">Stay in the spectrum</p>
+      <a class="button" href="/rss.xml">通过 RSS 订阅 <span aria-hidden="true">↗</span></a>
+      <a href={siteConfig.author.github} rel="me">GitHub / {siteConfig.author.name}</a>
+    </div>
+  </div>
+  <div class="shell legal"><span>© {new Date().getFullYear()} {siteConfig.author.name}</span><span>以 Astro 与文字构成</span></div>
+</footer>
+<style>
+  .footer { border-top: var(--line); padding-top: clamp(4rem, 8vw, 8rem); background: var(--yellow); color: #151514; }
+  :global([data-theme='dark']) .footer { background: #d5b42c; }
+  .footer-grid { display: grid; grid-template-columns: 7fr 5fr; gap: 2rem; padding-bottom: 5rem; }.footer h2 { margin: 0; font-size: clamp(3rem, 8vw, 7rem); line-height: .9; letter-spacing: -.06em; }.footer-mark { margin: 0 0 2rem; font-size: 3rem; }.footer-links { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 1.5rem; }.legal { display: flex; justify-content: space-between; gap: 1rem; padding-block: 1.25rem; border-top: 1px solid #151514; font: .7rem var(--font-mono); text-transform: uppercase; }
+  @media (max-width:760px) { .footer-grid { grid-template-columns: 1fr; }.legal { flex-direction: column; } }
+</style>

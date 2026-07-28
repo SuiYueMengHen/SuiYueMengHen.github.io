@@ -1,0 +1,33 @@
+{
+  "name": "prism-notes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
+    "start": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
+    "check": "ASTRO_TELEMETRY_DISABLED=1 astro check && npm run post:check",
+    "build": "ASTRO_TELEMETRY_DISABLED=1 astro build && pagefind --site dist",
+    "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "post:new": "node scripts/new-post.mjs",
+    "post:check": "node scripts/check-posts.mjs",
+    "post:publish": "node scripts/publish-post.mjs",
+    "comments:configure": "node scripts/configure-giscus.mjs",
+    "publish": "node scripts/publish.mjs"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "latest",
+    "@astrojs/rss": "latest",
+    "@astrojs/sitemap": "latest",
+    "astro": "latest",
+    "pagefind": "latest"
+  },
+  "devDependencies": {
+    "@astrojs/check": "latest",
+    "@playwright/test": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

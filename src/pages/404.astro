@@ -1,0 +1,5 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout title="页面未找到"><section class="not-found shell"><div class="code">4<span>0</span>4</div><div><p class="section-kicker">Lost in refraction</p><h1>这束光走丢了。</h1><p>你访问的页面不存在，可能已经被移动，或从未被写下。</p><a class="button" href="/">返回首页</a></div></section></BaseLayout>
+<style>.not-found{min-height:calc(100dvh - 76px);display:grid;grid-template-columns:7fr 5fr;align-items:center;gap:3rem}.code{font-size:clamp(8rem,25vw,24rem);font-weight:900;line-height:.8;letter-spacing:-.12em}.code span{display:inline-block;color:var(--red);transform:rotate(18deg)}.not-found h1{font-size:clamp(2.5rem,5vw,5rem);line-height:1;margin:.5rem 0}@media(max-width:760px){.not-found{grid-template-columns:1fr;padding-block:4rem}.code{font-size:40vw}}</style>

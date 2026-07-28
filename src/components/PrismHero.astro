@@ -1,0 +1,47 @@
+---
+import { siteConfig } from '../config/site';
+---
+<section class="hero">
+  <div class="shell hero-grid">
+    <div class="hero-copy">
+      <p class="hero-kicker">{siteConfig.hero.eyebrow}</p>
+      <h1>{siteConfig.hero.title.split('\n').map((line) => <span>{line}</span>)}</h1>
+      <div class="hero-bottom">
+        <p>{siteConfig.hero.introduction}</p>
+        <div class="hero-actions"><a class="button" href="/blog/">开始阅读</a><a class="text-link" href="/about/">认识作者 <span aria-hidden="true">↗</span></a></div>
+      </div>
+    </div>
+    <div class="prism-stage" aria-hidden="true">
+      <svg class="prism" viewBox="0 0 600 640" role="presentation">
+        <g class="orbit orbit-a"><circle cx="310" cy="305" r="216" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 10"/><circle cx="98" cy="286" r="14" fill="var(--red)"/></g>
+        <g class="orbit orbit-b"><ellipse cx="308" cy="305" rx="280" ry="125" fill="none" stroke="currentColor" stroke-width="2"/><rect x="551" y="290" width="28" height="28" fill="var(--blue)" transform="rotate(25 565 304)"/></g>
+        <path d="M310 72 511 470 93 470 310 72Z" fill="var(--surface)" stroke="currentColor" stroke-width="5"/>
+        <path d="m310 72 36 278 165 120" fill="none" stroke="var(--red)" stroke-width="18"/>
+        <path d="m310 72-41 276L93 470" fill="none" stroke="var(--blue)" stroke-width="11"/>
+        <path d="m269 348 77 2 165 120H93l176-122Z" fill="var(--yellow)" fill-opacity=".78" stroke="currentColor" stroke-width="3"/>
+        <circle cx="310" cy="72" r="23" fill="var(--ink)"/>
+        <text x="310" y="540" text-anchor="middle" fill="currentColor" font-family="monospace" font-size="15" letter-spacing="4">REFRACT · REFLECT · RECORD</text>
+      </svg>
+      <span class="coordinate c1">N 31° 14′</span><span class="coordinate c2">E 121° 29′</span>
+    </div>
+  </div>
+</section>
+<script>
+  const stage = document.querySelector<HTMLElement>('.prism-stage');
+  const prism = document.querySelector<SVGElement>('.prism');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (stage && prism && !reduced) {
+    stage.addEventListener('pointermove', (event) => {
+      const box = stage.getBoundingClientRect();
+      const x = (event.clientX - box.left) / box.width - .5;
+      const y = (event.clientY - box.top) / box.height - .5;
+      prism.style.transform = `translate3d(${x * 12}px, ${y * 12}px, 0) rotateX(${-y * 3}deg) rotateY(${x * 3}deg)`;
+    });
+    stage.addEventListener('pointerleave', () => prism.style.transform = '');
+  }
+</script>
+<style>
+  .hero { min-height: calc(100dvh - 76px); display: grid; align-items: stretch; border-bottom: var(--line); overflow: hidden; }.hero-grid { display: grid; grid-template-columns: 7fr 5fr; }.hero-copy { padding: clamp(4rem, 8vw, 8rem) clamp(1rem, 4vw, 4rem) 3rem 0; display: flex; flex-direction: column; justify-content: space-between; border-right: var(--line); }.hero-kicker { margin: 0 0 2rem; font: 700 .72rem var(--font-mono); letter-spacing: .14em; }.hero h1 { margin: 0; font-size: clamp(3.8rem, 8.3vw, 8.7rem); line-height: .86; letter-spacing: -.08em; }.hero h1 span { display: block; animation: reveal .7s cubic-bezier(.2,.75,.25,1) both; }.hero h1 span:nth-child(2) { animation-delay: .12s; }.hero-bottom { display: grid; grid-template-columns: 1fr 1.25fr; gap: 2rem; align-items: end; margin-top: 4rem; }.hero-bottom p { margin: 0; max-width: 30rem; font-size: 1.05rem; }.hero-actions { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }.text-link { min-height: 44px; display: inline-flex; align-items: center; font-weight: 750; }.prism-stage { position: relative; display: grid; place-items: center; min-height: 620px; perspective: 800px; background: color-mix(in srgb, var(--blue) 8%, transparent); }.prism { width: min(96%, 650px); overflow: visible; transform-origin: center; transition: transform .35s cubic-bezier(.2,.75,.25,1); }.orbit-a { transform-origin: 310px 305px; animation: spin 24s linear infinite; }.orbit-b { transform-origin: 308px 305px; animation: spin 32s linear infinite reverse; }.coordinate { position: absolute; font: .65rem var(--font-mono); letter-spacing: .12em; }.c1 { top: 1.5rem; right: 1.5rem; }.c2 { bottom: 1.5rem; left: 1.5rem; } @keyframes reveal { from { opacity: 0; transform: translateY(32px) skewY(2deg); } } @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; }.hero-copy { border-right: 0; padding-right: 0; }.prism-stage { min-height: 470px; border-top: var(--line); }.hero-bottom { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { .hero h1 { font-size: clamp(3.35rem, 17vw, 5rem); }.prism-stage { min-height: 390px; } }
+</style>

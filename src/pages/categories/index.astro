@@ -1,0 +1,6 @@
+---
+import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import { visiblePosts } from '../../lib/posts';
+const posts=visiblePosts(await getCollection('blog'));const categories=Object.entries(Object.groupBy(posts,p=>p.data.category)).sort((a,b)=>b[1]!.length-a[1]!.length);
+---
+<BaseLayout title="文章分类"><header class="page-head shell"><p class="section-kicker">Directions of thought</p><h1 class="display">分类</h1></header><section class="section"><div class="shell taxonomy">{categories.map(([name,items],i)=><a href={`/categories/${encodeURIComponent(name)}/`}><span>{String(i+1).padStart(2,'0')}</span><strong>{name}</strong><em>{items?.length} 篇</em></a>)}</div></section></BaseLayout>
+<style>.taxonomy{border-top:var(--line)}.taxonomy a{display:grid;grid-template-columns:1fr 8fr 2fr;align-items:center;gap:1rem;padding:1.5rem 0;border-bottom:var(--line);text-decoration:none}.taxonomy strong{font-size:clamp(2rem,6vw,5rem);letter-spacing:-.05em}.taxonomy span,.taxonomy em{font:.7rem var(--font-mono);font-style:normal}.taxonomy a:hover{color:var(--red)}@media(max-width:600px){.taxonomy a{grid-template-columns:1fr 5fr}.taxonomy em{display:none}}</style>
