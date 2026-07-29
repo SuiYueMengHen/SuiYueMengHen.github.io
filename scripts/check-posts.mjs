@@ -1,24 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
-const root = path.join(process.cwd(), 'src/content/blog');
-const files = fs.readdirSync(root, { recursive: true, encoding: 'utf8' }).filter((file) => /(?:^|\/)index\.(md|mdx)$/.test(file));
-const errors = [];
-const slugs = new Set();
-const required = ['title', 'description', 'publishDate', 'category', 'tags'];
-for (const relative of files) {
-  const file = path.join(root, relative);
-  const source = fs.readFileSync(file, 'utf8');
-  const match = source.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) { errors.push(`${relative}: 缺少 frontmatter`); continue; }
-  for (const key of required) if (!new RegExp(`^${key}:\\s*.+`, 'm').test(match[1])) errors.push(`${relative}: 缺少 ${key}`);
-  const slug = path.dirname(relative);
-  if (slugs.has(slug)) errors.push(`${relative}: slug 重复`); slugs.add(slug);
-  const date = match[1].match(/^publishDate:\s*(.+)$/m)?.[1]?.trim();
-  if (date && Number.isNaN(Date.parse(date))) errors.push(`${relative}: publishDate 无效`);
-  for (const image of source.matchAll(/!\[[^\]]*\]\((\.\/[^)\s]+)[^)]*\)/g)) {
-    if (!fs.existsSync(path.resolve(path.dirname(file), image[1]))) errors.push(`${relative}: 图片不存在 ${image[1]}`);
-  }
-}
-if (errors.length) { console.error(errors.map((item) => `✗ ${item}`).join('\n')); process.exit(1); }
-console.log(`✓ ${files.length} 篇文章检查通过`);
+import fs from 'node:fs';import path from 'node:path';
+const contentRoot=path.join(process.cwd(),'src/content');const blogRoot=path.join(contentRoot,'blog');const collectionRoot=path.join(contentRoot,'collections');const files=fs.readdirSync(blogRoot,{recursive:true,encoding:'utf8'}).filter(file=>/(?:^|\/)index\.(md|mdx)$/.test(file));const errors=[];const warnings=[];const slugs=new Set();const required=['title','description','publishDate','category','tags'];
+const collectionFiles=fs.existsSync(collectionRoot)?fs.readdirSync(collectionRoot).filter(file=>/\.ya?ml$/.test(file)):[];const collectionIds=new Set(collectionFiles.map(file=>file.replace(/\.ya?ml$/,'')));const chapterOrders=new Map();
+for(const relative of files){const file=path.join(blogRoot,relative);const source=fs.readFileSync(file,'utf8');const match=source.match(/^---\r?\n([\s\S]*?)\r?\n---/);if(!match){errors.push(`${relative}: 缺少 frontmatter`);continue}const front=match[1];for(const key of required)if(!new RegExp(`^${key}:\\s*.+`,'m').test(front))errors.push(`${relative}: 缺少 ${key}`);const slug=path.dirname(relative);if(slugs.has(slug))errors.push(`${relative}: slug 重复`);slugs.add(slug);const date=front.match(/^publishDate:\s*(.+)$/m)?.[1]?.trim();if(date&&Number.isNaN(Date.parse(date)))errors.push(`${relative}: publishDate 无效`);const title=front.match(/^title:\s*(.+)$/m)?.[1]?.replace(/^['"]|['"]$/g,'').trim();if(!title)errors.push(`${relative}: title 不能为空`);const collection=front.match(/^collection:\s*(.+)$/m)?.[1]?.trim();const orderText=front.match(/^collectionOrder:\s*(.+)$/m)?.[1]?.trim();if(collection&&!collectionIds.has(collection))errors.push(`${relative}: 引用了不存在的合集 ${collection}`);if(collection&&!orderText)errors.push(`${relative}: 已设置合集但缺少 collectionOrder`);if(!collection&&orderText)errors.push(`${relative}: collectionOrder 必须与 collection 同时设置`);if(collection&&orderText){const order=Number(orderText);if(!Number.isInteger(order)||order<=0)errors.push(`${relative}: collectionOrder 必须为正整数`);const key=`${collection}:${order}`;if(chapterOrders.has(key))errors.push(`${relative}: 与 ${chapterOrders.get(key)} 的合集章节号重复（${key}）`);else chapterOrders.set(key,relative)}if(/^series:/m.test(front))warnings.push(`${relative}: series 已弃用，请迁移到 collection`);const tagsLine=front.match(/^tags:\s*\[(.*)\]$/m)?.[1];if(tagsLine){const tags=tagsLine.split(',').map(tag=>tag.trim().replace(/^['"]|['"]$/g,''));if(tags.some(tag=>!tag))errors.push(`${relative}: tags 包含空标签`);if(new Set(tags).size!==tags.length)errors.push(`${relative}: tags 包含重复标签`)}for(const image of source.matchAll(/!\[([^\]]*)\]\((\.\/[^)\s]+)[^)]*\)/g)){if(!image[1].trim())errors.push(`${relative}: 图片 ${image[2]} 缺少替代文本`);if(!fs.existsSync(path.resolve(path.dirname(file),image[2])))errors.push(`${relative}: 图片不存在 ${image[2]}`)}}
+if(warnings.length)console.warn(warnings.map(item=>`! ${item}`).join('\n'));if(errors.length){console.error(errors.map(item=>`✗ ${item}`).join('\n'));process.exit(1)}console.log(`✓ ${files.length} 篇文章、${collectionIds.size} 个合集检查通过`);

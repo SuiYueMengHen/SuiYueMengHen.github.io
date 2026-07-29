@@ -8,6 +8,12 @@ export const siteConfig = {
     name: 'SuiYueMengHen',
     bio: '记录技术、创造与日常观察。',
     github: 'https://github.com/SuiYueMengHen',
+    focus: ['软件与工具', '数字写作', '日常观察'],
+    principles: [
+      { title: '诚实', description: '只写真正经历、学习和思考过的事情。' },
+      { title: '清晰', description: '不拿复杂冒充深刻，把推理过程交代完整。' },
+      { title: '长期', description: '允许文章被修订、连接，并随理解一同生长。' },
+    ],
   },
   hero: {
     eyebrow: 'A personal journal of technology, creation & observation',
@@ -15,9 +21,10 @@ export const siteConfig = {
     introduction: '关于技术、创造与日常观察的个人写作空间。慢一点思考，认真地记录。',
   },
   nav: [
-    { label: '文章', href: '/blog/' },
+    { label: '首页', href: '/' },
+    { label: '合集', href: '/blog/' },
     { label: '分类', href: '/categories/' },
-    { label: '归档', href: '/archive/' },
+    { label: '项目', href: '/projects/' },
     { label: '关于', href: '/about/' },
   ],
   postsPerPage: 9,
@@ -26,7 +33,6 @@ export const siteConfig = {
     lineHeight: 1.85,
     contentWidth: 46,
     paragraphIndent: true,
-    smoothScroll: true,
   },
   comments: {
     enabled: true,

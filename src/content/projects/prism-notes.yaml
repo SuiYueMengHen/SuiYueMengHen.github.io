@@ -1,0 +1,12 @@
+repo: SuiYueMengHen/SuiYueMengHen.github.io
+title: Prism Notes
+description: 基于 Astro 与 Markdown 构建的 LaTeX 风格个人博客及桌面写作工具。
+language: TypeScript
+stars: 0
+forks: 0
+license: MIT
+topics: [astro, blog, markdown, github-pages]
+homepage: https://suiyuemenghen.github.io
+featured: true
+order: 1
+syncedAt: 2026-07-29T00:00:00Z

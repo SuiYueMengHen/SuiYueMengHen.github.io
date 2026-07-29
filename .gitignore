@@ -5,3 +5,7 @@ dist/
 playwright-report/
 test-results/
 .env
+.prism-studio/
+tools/prism-studio/build/
+tools/prism-studio/dist/
+tools/prism-studio/__pycache__/

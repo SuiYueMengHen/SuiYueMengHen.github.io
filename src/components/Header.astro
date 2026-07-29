@@ -10,19 +10,28 @@ const path = Astro.url.pathname;
       <span><b>{siteConfig.name}</b><small>{siteConfig.englishName}</small></span>
     </a>
     <nav id="site-nav" aria-label="主导航">
-      {siteConfig.nav.map((item) => <a href={item.href} aria-current={path.startsWith(item.href) ? 'page' : undefined}>{item.label}</a>)}
-      <a href="/search/">搜索</a>
+      {siteConfig.nav.map((item) => <a href={item.href} aria-current={(item.href==='/'?path===item.href:path.startsWith(item.href)) ? 'page' : undefined}>{item.label}</a>)}
     </nav>
     <div class="header-actions">
       <button id="settings-toggle" class="icon-button" type="button" aria-label="打开阅读设置" aria-controls="reading-settings" title="阅读设置"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M7 14v6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-      <button id="theme-toggle" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题"><span aria-hidden="true">◐</span></button>
-      <button id="menu-toggle" class="icon-button menu-button" type="button" aria-label="打开菜单" aria-controls="site-nav" aria-expanded="false"><span aria-hidden="true">≡</span></button>
+      <a class="icon-button" href="/search/" aria-label="搜索" title="搜索"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m15.5 15.5 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></a>
+      <button id="theme-toggle" class="icon-button" type="button" aria-label="切换明暗主题" title="切换明暗主题"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></svg></button>
+      <button id="menu-toggle" class="icon-button menu-button" type="button" aria-label="打开菜单" aria-controls="site-nav" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7.5h16M4 12h16M4 16.5h16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </div>
 </header>
 <script>
   const themeButton=document.querySelector<HTMLButtonElement>('#theme-toggle');
-  themeButton?.addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('prism-theme',next);window.dispatchEvent(new CustomEvent('prism-theme-change',{detail:{theme:next}}))});
+  themeButton?.addEventListener('click',async(event)=>{
+    const next=document.documentElement.dataset.theme==='dark'?'light':'dark';const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const rect=themeButton.getBoundingClientRect();const x=(event as MouseEvent).clientX||rect.left+rect.width/2;const y=(event as MouseEvent).clientY||rect.top+rect.height/2;
+    const radius=Math.hypot(Math.max(x,innerWidth-x),Math.max(y,innerHeight-y));const apply=()=>{document.documentElement.dataset.theme=next;localStorage.setItem('prism-theme',next)};
+    if(reduce){apply();window.dispatchEvent(new CustomEvent('prism-theme-change',{detail:{theme:next}}));return}
+    document.documentElement.style.setProperty('--theme-x',`${x}px`);document.documentElement.style.setProperty('--theme-y',`${y}px`);document.documentElement.style.setProperty('--theme-radius',`${radius}px`);
+    const transition=(document as any).startViewTransition?.(()=>apply());
+    if(transition){await transition.finished;}else{const layer=document.createElement('div');layer.className=`theme-ripple theme-ripple--${next}`;layer.style.setProperty('--x',`${x}px`);layer.style.setProperty('--y',`${y}px`);layer.style.setProperty('--r',`${radius}px`);document.body.append(layer);await layer.animate([{clipPath:'circle(0 at var(--x) var(--y))'},{clipPath:'circle(var(--r) at var(--x) var(--y))'}],{duration:420,easing:'cubic-bezier(.2,.75,.2,1)',fill:'forwards'}).finished;apply();layer.remove()}
+    window.dispatchEvent(new CustomEvent('prism-theme-change',{detail:{theme:next}}));
+  });
   const menuButton=document.querySelector<HTMLButtonElement>('#menu-toggle');const nav=document.querySelector<HTMLElement>('#site-nav');
   menuButton?.addEventListener('click',()=>{const open=menuButton.getAttribute('aria-expanded')==='true';menuButton.setAttribute('aria-expanded',String(!open));menuButton.setAttribute('aria-label',open?'打开菜单':'关闭菜单');nav?.classList.toggle('is-open',!open)});
 </script>
@@ -30,6 +39,6 @@ const path = Astro.url.pathname;
   .site-header{position:sticky;top:0;z-index:100;border-bottom:1px solid var(--soft-line);background:color-mix(in srgb,var(--paper) 94%,transparent);backdrop-filter:blur(10px)}
   .header-inner{min-height:66px;display:flex;align-items:center;justify-content:space-between;gap:1rem}.brand{display:flex;align-items:center;gap:.7rem;text-decoration:none;line-height:1}.brand>span:last-child{display:grid;gap:.25rem}.brand b{font-weight:500}.brand small{font:500 .62rem var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted-ink)}
   nav{display:flex;align-items:center;gap:1.35rem}nav a{min-height:44px;display:grid;place-items:center;font:500 .82rem var(--font-sans);text-decoration:none;position:relative}nav a[aria-current='page']::after{content:'';position:absolute;left:0;right:0;bottom:7px;border-top:1px solid currentColor}
-  .header-actions{display:flex}.icon-button{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;color:inherit;cursor:pointer;font-size:1.25rem}.icon-button:hover{color:var(--accent)}.menu-button{display:none}
+  .header-actions{display:flex}.icon-button{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;color:inherit;cursor:pointer;font-size:1.25rem;text-decoration:none}.icon-button:hover{color:var(--accent)}.menu-button{display:none}
   @media(max-width:760px){.menu-button{display:grid}nav{display:none;position:absolute;left:0;right:0;top:66px;padding:1rem 1.25rem 1.5rem;flex-direction:column;align-items:stretch;background:var(--paper);border-bottom:1px solid var(--line-color)}nav.is-open{display:flex}nav a{font-size:1rem}}
 </style>

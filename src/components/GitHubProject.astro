@@ -1,0 +1,9 @@
+---
+import { getCollection } from 'astro:content';
+import ProjectCard from './ProjectCard.astro';
+interface Props { repo: string }
+const { repo } = Astro.props;
+const project = (await getCollection('projects')).find((item) => item.data.repo.toLowerCase() === repo.toLowerCase());
+---
+{project ? <div class="embedded-project"><ProjectCard project={project} compact /></div> : <aside class="project-missing" role="note">项目快照 <code>{repo}</code> 尚未导入。请运行 <code>npm run project:import -- {repo}</code>。</aside>}
+<style>.embedded-project{margin:2rem 0}.project-missing{margin:2rem 0;padding:1rem;border:1px solid var(--soft-line);font-size:.9rem}</style>

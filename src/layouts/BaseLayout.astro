@@ -2,7 +2,6 @@
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import ReadingSettings from '../components/ReadingSettings.astro';
-import SmoothScroll from '../components/SmoothScroll.astro';
 import { siteConfig } from '../config/site';
 import 'computer-modern/cmu-serif.css';
 import 'computer-modern/cmu-sans-serif.css';
@@ -28,7 +27,7 @@ const jsonLd = type === 'article'
   : { '@context': 'https://schema.org', '@type': 'WebSite', name: siteConfig.name, alternateName: siteConfig.englishName, url: siteConfig.site, description, inLanguage: siteConfig.locale };
 ---
 <!doctype html>
-<html lang="zh-CN" style={`--reader-font-size:${siteConfig.reading.fontSize}px;--reader-line-height:${siteConfig.reading.lineHeight};--measure:${siteConfig.reading.contentWidth}rem;--paragraph-indent:${siteConfig.reading.paragraphIndent?'2em':'0'}`} data-smooth-scroll={String(siteConfig.reading.smoothScroll)}>
+<html lang="zh-CN" style={`--reader-font-size:${siteConfig.reading.fontSize}px;--reader-line-height:${siteConfig.reading.lineHeight};--measure:${siteConfig.reading.contentWidth}rem;--paragraph-indent:${siteConfig.reading.paragraphIndent?'2em':'0'}`}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -46,7 +45,7 @@ const jsonLd = type === 'article'
     {publishedTime && <meta property="article:published_time" content={publishedTime.toISOString()} />}
     {updatedTime && <meta property="article:modified_time" content={updatedTime.toISOString()} />}
     <script is:inline>
-      (() => { const root=document.documentElement;const saved=localStorage.getItem('prism-theme');const dark=matchMedia('(prefers-color-scheme: dark)').matches;root.dataset.theme=saved||(dark?'dark':'light');try{const s=JSON.parse(localStorage.getItem('prism-reader-settings')||'{}');if(s.fontSize)root.style.setProperty('--reader-font-size',`${s.fontSize}px`);if(s.lineHeight)root.style.setProperty('--reader-line-height',s.lineHeight);if(s.contentWidth)root.style.setProperty('--measure',`${s.contentWidth}rem`);if(typeof s.paragraphIndent==='boolean')root.style.setProperty('--paragraph-indent',s.paragraphIndent?'2em':'0');if(typeof s.smoothScroll==='boolean')root.dataset.smoothScroll=String(s.smoothScroll)}catch{}})();
+      (() => { const root=document.documentElement;const saved=localStorage.getItem('prism-theme');const dark=matchMedia('(prefers-color-scheme: dark)').matches;root.dataset.theme=saved||(dark?'dark':'light');try{const s=JSON.parse(localStorage.getItem('prism-reader-settings')||'{}');if(s.fontSize)root.style.setProperty('--reader-font-size',`${s.fontSize}px`);if(s.lineHeight)root.style.setProperty('--reader-line-height',s.lineHeight);if(s.contentWidth)root.style.setProperty('--measure',`${s.contentWidth}rem`);if(typeof s.paragraphIndent==='boolean')root.style.setProperty('--paragraph-indent',s.paragraphIndent?'2em':'0')}catch{}})();
     </script>
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     <title>{pageTitle}</title>
@@ -57,7 +56,6 @@ const jsonLd = type === 'article'
     <ReadingSettings />
     <main id="main-content"><slot /></main>
     <Footer />
-    <SmoothScroll />
     {siteConfig.analytics.enabled && siteConfig.analytics.scriptUrl && <script is:inline async src={siteConfig.analytics.scriptUrl}></script>}
   </body>
 </html>

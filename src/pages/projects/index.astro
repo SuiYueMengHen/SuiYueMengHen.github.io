@@ -1,0 +1,6 @@
+---
+import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import ProjectCard from '../../components/ProjectCard.astro';import { sortedProjects } from '../../lib/posts';
+const projects=sortedProjects(await getCollection('projects'));
+---
+<BaseLayout title="项目" description="Prism Notes 的开源项目档案。"><header class="page-head shell"><p class="section-kicker">Open source dossiers</p><h1 class="display">项目</h1><p>构建、维护与持续迭代的公开项目。数据由 GitHub 导入后保存为本地快照，构建过程不依赖网络。</p></header><section class="projects shell">{projects.length?projects.map(project=><ProjectCard project={project}/>):<div class="empty"><h2>项目档案尚为空</h2><p>运行 <code>npm run project:import -- owner/repo</code> 导入第一个 GitHub 项目。</p></div>}</section></BaseLayout>
+<style>.projects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;padding-bottom:7rem}.empty{grid-column:1/-1;padding:3rem;border-block:1px solid var(--line-color);text-align:center}.empty h2{font-weight:500}@media(max-width:760px){.projects{grid-template-columns:1fr}}</style>

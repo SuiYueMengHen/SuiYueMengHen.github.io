@@ -9,12 +9,14 @@
     "check": "ASTRO_TELEMETRY_DISABLED=1 astro check && npm run post:check",
     "build": "ASTRO_TELEMETRY_DISABLED=1 astro build && pagefind --site dist",
     "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
-    "test": "vitest run",
+    "test": "vitest run && python3 -m unittest discover -s tools/prism-studio -p 'test_*.py'",
     "test:e2e": "playwright test",
     "post:new": "node scripts/new-post.mjs",
     "post:check": "node scripts/check-posts.mjs",
     "post:publish": "node scripts/publish-post.mjs",
     "comments:configure": "node scripts/configure-giscus.mjs",
+    "project:import": "node scripts/import-project.mjs",
+    "studio": "python3 tools/prism-studio/app.py",
     "publish": "node scripts/publish.mjs"
   },
   "dependencies": {

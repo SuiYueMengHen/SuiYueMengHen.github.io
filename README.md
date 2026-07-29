@@ -2,7 +2,7 @@
 
 > 把复杂世界，折射成清晰的文字。
 
-基于 Astro、Markdown 和 Pagefind 构建的个人静态博客，部署于 GitHub Pages。文章、图片、设置和主题源码全部保存在本仓库。
+基于 Astro、Markdown/MDX 和 Pagefind 构建的个人静态博客，部署于 GitHub Pages。文章、合集、项目快照、图片、设置和主题源码全部保存在本仓库。
 
 站点采用极简 LaTeX 论文风格，本地打包 Computer Modern 字体，并通过 KaTeX 支持行内公式与块级公式。
 
@@ -43,9 +43,10 @@ publishDate: 2026-07-28
 updatedDate: 2026-08-01 # 可选
 category: "设计"
 tags: ["设计", "界面"]
+collection: digital-garden # 可选：src/content/collections 中的 slug
+collectionOrder: 1 # 加入合集时必填，正整数且不可重复
 featured: false
 draft: true
-series: "系列名称" # 可选
 canonical: "https://example.com/original" # 可选
 ---
 ```
@@ -76,7 +77,7 @@ $$
 
 ### 阅读设置
 
-页眉中的设置按钮允许读者调整字号、行距、版心宽度、段首缩进和柔和滚动，选择保存在当前浏览器。全站默认值集中在 `src/config/site.ts` 的 `reading` 字段中。
+页眉中的设置按钮允许读者调整字号、行距、版心宽度和段首缩进，选择保存在当前浏览器。页面滚动完全使用操作系统与浏览器的原生惯性，仅锚点跳转使用平滑滚动；减少动态效果模式下锚点即时跳转。全站默认值集中在 `src/config/site.ts` 的 `reading` 字段中。
 
 评论区使用两份自定义 Giscus 主题：`public/giscus-latex-light.css` 与 `public/giscus-latex-dark.css`。它们通过 jsDelivr 加载，以满足 Giscus 自定义主题的跨域要求。
 
@@ -100,6 +101,37 @@ npm run publish -- "发布：文章标题"
 站点名称、作者、首页文案、导航、社交链接、评论和统计开关统一位于 [`src/config/site.ts`](src/config/site.ts)。视觉颜色与字体位于 `src/styles/tokens.css`。
 
 修改后运行 `npm run check && npm run build`，确认无误再推送。
+
+## 合集与项目
+
+合集保存在 `src/content/collections/*.yaml`。`/blog/` 是合集书架，合集内文章只按 `collectionOrder` 排序；未加入合集的文章自动进入按分类与中文标题排序的“散篇书架”。时间顺序仍可从页脚的归档入口查看。
+
+导入或刷新 GitHub 项目快照：
+
+```bash
+gh auth login -h github.com # 仅认证失效时需要
+npm run project:import -- owner/repo
+```
+
+项目数据保存于 `src/content/projects/*.yaml`，构建阶段不会请求 GitHub。在 `.mdx` 中可直接写 `<GitHubProject repo="owner/repo" />`，无需手动 import。
+
+## Prism Studio 桌面写作工具
+
+```bash
+python3 -m pip install -r tools/prism-studio/requirements.txt
+npm run studio
+```
+
+Prism Studio 提供文章/合集/项目浏览、frontmatter 表单、Markdown/MDX 编辑、600ms 自动保存与首次修改备份、真实 Astro 实时预览、图片管理、GitHub 项目导入，以及“发布当前内容 / 发布全部变更”两条可视化发布流程。备份位于 `.prism-studio/backups/`，不会提交到 Git。
+
+macOS `.app` 构建命令：
+
+```bash
+cd tools/prism-studio
+pyinstaller --clean --noconfirm PrismStudio.spec
+```
+
+打包仅包含 Python、PySide6 与应用代码；Node、npm、git、gh 仍是外部依赖，用户凭据不会复制进应用。
 
 ## 评论配置
 
@@ -127,10 +159,13 @@ npm run publish -- "发布：文章标题"
 
 ```text
 src/content/blog/   Markdown/MDX 文章和配图
+src/content/collections/ 合集 YAML
+src/content/projects/ GitHub 项目快照 YAML
 src/config/site.ts  站点统一设置
 src/pages/          页面和静态接口
 src/components/     可复用组件
 scripts/            新建、检查、发布文章的命令
+tools/prism-studio/  PySide6 桌面写作工具
 .github/workflows/  检查与 GitHub Pages 部署
 ```
 

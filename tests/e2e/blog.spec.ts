@@ -6,19 +6,31 @@ test('首页包含核心内容且没有横向溢出', async ({ page }) => {
   await expect(page.getByRole('link', { name: '开始阅读' })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
+  for (const label of ['首页', '合集', '分类', '项目', '关于']) await expect(page.locator('#site-nav a', { hasText: label })).toHaveCount(1);
 });
 
 test('主题切换会持久化', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '切换明暗主题' }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('prism-theme'))).toMatch(/light|dark/);
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--theme-radius').trim())).not.toBe('');
 });
+
+test('减少动态效果时主题与锚点即时切换',async({page})=>{await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/');await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).scrollBehavior)).toBe('auto');await page.getByRole('button',{name:'切换明暗主题'}).click();await expect.poll(()=>page.evaluate(()=>localStorage.getItem('prism-theme'))).toMatch(/light|dark/)});
 
 test('文章页提供目录与代码复制', async ({ page }) => {
   await page.goto('/blog/building-a-digital-garden/');
-  await expect(page.getByRole('navigation', { name: '相邻文章' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '按合集相邻文章' })).toBeVisible();
   await expect(page.getByRole('button', { name: '复制代码' })).toBeVisible();
 });
+
+test('合集书架按显式章节顺序展示并支持双模式翻页',async({page})=>{await page.goto('/blog/');await expect(page.getByRole('heading',{name:'数字花园札记'})).toBeVisible();const chapters=page.locator('.book li strong');await expect(chapters.nth(0)).toHaveText('把博客当作一座数字花园');await page.goto('/blog/designing-with-constraints/?nav=category');await expect(page.getByRole('button',{name:'按分类'})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('navigation',{name:'按分类相邻文章'})).toBeVisible()});
+
+test('分类页面展开标题并提供快速索引',async({page},testInfo)=>{await page.goto('/categories/');await expect(page.getByRole('heading',{name:'方法'})).toBeVisible();await expect(page.getByRole('link',{name:/把博客当作一座数字花园/})).toBeVisible();if(testInfo.project.name==='desktop')await expect(page.getByText('快速索引')).toBeVisible();else await expect(page.locator('#category-jump')).toBeVisible()});
+
+test('项目卡片与定制关于页可用',async({page})=>{await page.goto('/projects/');await expect(page.getByRole('heading',{name:'Prism Notes'})).toBeVisible();await expect(page.getByText('SuiYueMengHen/SuiYueMengHen.github.io')).toBeVisible();await page.goto('/about/');await expect(page.getByRole('heading',{name:/慢一点思考/})).toBeVisible();await expect(page.getByRole('heading',{name:'写作原则'})).toBeVisible()});
+
+test('滚动使用浏览器原生路径且 wheel 不被阻止',async({page})=>{await page.goto('/');const prevented=await page.evaluate(()=>{const event=new WheelEvent('wheel',{deltaY:100,cancelable:true});window.dispatchEvent(event);return event.defaultPrevented});expect(prevented).toBe(false);expect(await page.locator('script[src*="SmoothScroll"]').count()).toBe(0)});
 
 test('书籍目录与章节编号支持快速跳转', async ({ page }, testInfo) => {
   await page.goto('/blog/designing-with-constraints/');
@@ -46,7 +58,7 @@ test('阅读设置可以修改并保存排版偏好', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => localStorage.getItem('prism-reader-settings'))).toContain('"fontSize":20');
   await page.getByRole('button', { name: '恢复默认' }).click();
   await page.getByRole('button', { name: '完成' }).click();
-  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.smoothScroll)).toBe('true');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('prism-reader-settings'))).not.toContain('smoothScroll');
 });
 
 test('LaTeX 公式同时输出可视公式与 MathML', async ({ page }) => {
@@ -63,3 +75,5 @@ test('移动端菜单可以打开', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: '打开菜单' }).click();
   await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible();
 });
+
+test('关键断点无横向溢出',async({page})=>{for(const width of [768,1024,1440]){await page.setViewportSize({width,height:900});for(const route of ['/blog/','/categories/','/projects/','/about/']){await page.goto(route);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true)}}});
