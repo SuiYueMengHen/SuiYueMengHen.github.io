@@ -116,6 +116,58 @@ def create_collection(repo_root:Path,title:str,description:str,slug:str='',subti
     content=yaml.safe_dump({key:value for key,value in data.items() if value not in (None,'')},allow_unicode=True,sort_keys=False)
     atomic_save(target,content,repo_root,backup=False);return target
 
+def content_catalog(repo_root:Path)->dict:
+    collections=[];categories=set();tags=set();articles=[]
+    directory=repo_root/'src/content/collections'
+    for file in directory.glob('*.yaml') if directory.exists() else []:
+        try:
+            data=yaml.safe_load(file.read_text('utf-8')) or {};collections.append({'id':file.stem,'title':data.get('title',file.stem),'order':data.get('order',9999)})
+        except yaml.YAMLError:continue
+    blog=repo_root/'src/content/blog'
+    if blog.exists():
+        for file in sorted([*blog.glob('*/index.md'),*blog.glob('*/index.mdx')]):
+            data,_=split_frontmatter(file.read_text('utf-8'));category=str(data.get('category','')).strip()
+            if category:categories.add(category)
+            tags.update(str(tag).strip() for tag in data.get('tags',[]) if str(tag).strip())
+            articles.append({'path':file,'slug':file.parent.name,'title':data.get('title',file.parent.name),'category':category,'tags':data.get('tags',[]),'collection':data.get('collection'),'order':data.get('collectionOrder')})
+    collections.sort(key=lambda item:(item['order'],item['title']))
+    return {'collections':collections,'categories':sorted(categories),'tags':sorted(tags),'articles':articles}
+
+def reorder_collection(repo_root:Path,collection_id:str,ordered_files:list[Path])->None:
+    if not collection_id:raise ValueError('只能调整合集内文章的顺序。')
+    for number,path in enumerate(ordered_files,1):
+        data,body=split_frontmatter(path.read_text('utf-8'))
+        if data.get('collection')!=collection_id:raise ValueError(f'{path.parent.name} 不属于合集 {collection_id}')
+        data['collectionOrder']=number;atomic_save(path,serialize_frontmatter(data,body),repo_root)
+
+def git_article_changes(repo_root:Path,runner:Callable=subprocess.run)->dict[str,dict]:
+    git=resolve_command('git');changes={}
+    if not git:return changes
+    result=runner([git,'status','--porcelain=v1','--untracked-files=all'],cwd=repo_root,capture_output=True,text=True)
+    if result.returncode:return changes
+    for line in result.stdout.splitlines():
+        if len(line)<4:continue
+        status=line[:2].strip() or 'M';relative=line[3:].split(' -> ')[-1];match=re.match(r'src/content/blog/([^/]+)/',relative)
+        if not match:continue
+        slug=match.group(1);item=changes.setdefault(slug,{'status':set(),'files':[],'added':0,'deleted':0});item['status'].add(status);item['files'].append(relative)
+    for slug,item in changes.items():
+        path=f'src/content/blog/{slug}'
+        diff=runner([git,'diff','--numstat','HEAD','--',path],cwd=repo_root,capture_output=True,text=True)
+        for line in diff.stdout.splitlines():
+            parts=line.split('\t')
+            if len(parts)>=2:
+                item['added']+=int(parts[0]) if parts[0].isdigit() else 0;item['deleted']+=int(parts[1]) if parts[1].isdigit() else 0
+        item['status']=' / '.join(sorted(item['status']))
+    return changes
+
+def trash_article(article_file:Path,repo_root:Path)->Path:
+    article_dir=article_file.parent
+    if not article_dir.resolve().is_relative_to((repo_root/'src/content/blog').resolve()):raise ValueError('只能移除博客文章。')
+    trash=repo_root/'.prism-studio'/'trash';trash.mkdir(parents=True,exist_ok=True)
+    target=trash/f"{article_dir.name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}";counter=2
+    while target.exists():target=trash/f'{target.name}-{counter}';counter+=1
+    shutil.move(str(article_dir),target);return target
+
 def article_assets(article_file:Path,repo_root:Path|None=None)->list[Path]:
     source=article_file.read_text('utf-8');paths=[article_file];data,_=split_frontmatter(source)
     for relative in re.findall(r'!\[[^\]]*\]\((\./[^)\s]+)',source):

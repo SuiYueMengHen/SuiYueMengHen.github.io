@@ -1,6 +1,6 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import atomic_save,article_assets,copy_images,create_collection,import_project,publish_commands,serialize_frontmatter,split_frontmatter
+from core import atomic_save,article_assets,content_catalog,copy_images,create_collection,git_article_changes,import_project,publish_commands,reorder_collection,serialize_frontmatter,split_frontmatter,trash_article
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
@@ -31,5 +31,21 @@ class CoreTests(unittest.TestCase):
             root=Path(folder);directory=root/'src/content/collections';directory.mkdir(parents=True);(directory/'book.yaml').write_text('title: 书\ndescription: 简介\norder: 1\n','utf-8')
             with self.assertRaises(FileExistsError):create_collection(root,'书','简介',slug='book')
             with self.assertRaises(ValueError):create_collection(root,'另一本','简介',slug='other',order=1)
+    def test_catalog_and_drag_reorder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);(root/'src/content/collections').mkdir(parents=True);(root/'src/content/collections/book.yaml').write_text('title: 书\ndescription: 简介\norder: 1\n','utf-8')
+            files=[]
+            for slug,order in [('a',2),('b',1)]:
+                path=root/f'src/content/blog/{slug}/index.md';path.parent.mkdir(parents=True);path.write_text(serialize_frontmatter({'title':slug,'description':'d','publishDate':'2026-01-01','category':'方法','tags':['写作'],'collection':'book','collectionOrder':order},'正文'),encoding='utf-8');files.append(path)
+            catalog=content_catalog(root);self.assertEqual(catalog['categories'],['方法']);self.assertEqual(catalog['tags'],['写作']);self.assertEqual(catalog['collections'][0]['id'],'book')
+            reorder_collection(root,'book',files);self.assertEqual(split_frontmatter(files[0].read_text('utf-8'))[0]['collectionOrder'],1);self.assertEqual(split_frontmatter(files[1].read_text('utf-8'))[0]['collectionOrder'],2)
+    def test_git_change_mapping_and_recoverable_delete(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);article=root/'src/content/blog/note/index.md';article.parent.mkdir(parents=True);article.write_text('note','utf-8')
+            def runner(command,**kwargs):
+                if 'status' in command:return Result(0,out=' M src/content/blog/note/index.md\n')
+                return Result(0,out='3\t1\tsrc/content/blog/note/index.md\n')
+            changes=git_article_changes(root,runner);self.assertEqual(changes['note']['added'],3);self.assertEqual(changes['note']['deleted'],1)
+            target=trash_article(article,root);self.assertTrue((target/'index.md').exists());self.assertFalse(article.parent.exists())
 
 if __name__=='__main__':unittest.main()
