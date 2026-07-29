@@ -7,6 +7,7 @@ import signal
 import socket
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
@@ -172,12 +173,14 @@ class ContentTree(QTreeWidget):
 class Studio(QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760);self.theme=read_app_settings().get('theme','light')
-        self.current_file:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.catalog={};self.changes={};self.preview_path='/';self.preview_ready=False;self.preview_failures=0;self.server_pid=None;self.executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix='prism-studio');self.environment_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(700,self.ensure_preview))
+        self.current_file:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.catalog={};self.changes={};self.preview_path='/';self.preview_ready=False;self.preview_failures=0;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.server_pid=None;self.executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix='prism-studio');self.environment_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(700,self.ensure_preview))
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(180);self.save_timer.timeout.connect(self.save_current)
         self.marker_timer=QTimer(self);self.marker_timer.setInterval(2200);self.marker_timer.timeout.connect(self.refresh_change_markers)
         self.preview_watchdog=QTimer(self);self.preview_watchdog.setInterval(1200);self.preview_watchdog.timeout.connect(self.ensure_preview)
+        self.editor_sync_timer=QTimer(self);self.editor_sync_timer.setSingleShot(True);self.editor_sync_timer.setInterval(45);self.editor_sync_timer.timeout.connect(self.sync_preview_to_editor)
+        self.preview_scroll_timer=QTimer(self);self.preview_scroll_timer.setInterval(120);self.preview_scroll_timer.timeout.connect(self.poll_preview_scroll)
         self.sync_process=QProcess(self);configure_process(self.sync_process);self.sync_process.setProcessChannelMode(QProcess.MergedChannels);self.sync_process.finished.connect(self.auto_sync_finished)
-        self.build_ui();self.reload_content();self.start_preview();self.check_environment();self.marker_timer.start();self.preview_watchdog.start();QTimer.singleShot(2500,self.auto_sync)
+        self.build_ui();self.reload_content();self.start_preview();self.check_environment();self.marker_timer.start();self.preview_watchdog.start();self.preview_scroll_timer.start();QTimer.singleShot(2500,self.auto_sync)
         if valid_root(ROOT):settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme});write_app_settings(settings)
 
     def panel(self,name):frame=QFrame();frame.setObjectName(name);return frame
@@ -210,6 +213,7 @@ class Studio(QMainWindow):
         checks=QHBoxLayout();self.draft=QCheckBox('草稿');self.featured=QCheckBox('首页推荐');checks.addWidget(self.draft);checks.addWidget(self.featured);checks.addStretch();layout.addRow('状态',checks)
         self.form_scroll.setWidget(self.form_surface);self.tabs.addTab(self.form_scroll,'文章信息')
         self.editor=QPlainTextEdit();self.editor.setObjectName('markdownEditor');self.editor.setMinimumHeight(350);font=QFont('SF Mono',13);font.setStyleHint(QFont.Monospace);self.editor.setFont(font);self.editor.setPlaceholderText('在这里开始写作…')
+        self.editor.cursorPositionChanged.connect(self.schedule_cursor_sync);self.editor.verticalScrollBar().valueChanged.connect(self.schedule_editor_scroll_sync)
         self.editor_split=QSplitter(Qt.Vertical);self.editor_split.setChildrenCollapsible(False);self.editor_split.addWidget(self.tabs);self.editor_split.addWidget(self.editor);self.editor_split.setSizes([285,590]);mv.addWidget(self.editor_split,1)
         tools=QHBoxLayout();image=QPushButton('插入图片');image.clicked.connect(self.insert_images);self.project_button=QPushButton('插入 GitHub 项目');self.project_button.clicked.connect(self.add_project);tools.addWidget(image);tools.addWidget(self.project_button);tools.addStretch();mv.addLayout(tools);split.addWidget(middle)
 
@@ -299,8 +303,8 @@ class Studio(QMainWindow):
                 if selected_path==item.data(0,ROLE_PATH):target_item=item
         projects=QTreeWidgetItem(['项目快照']);projects.setData(0,ROLE_KIND,'root');self.tree.addTopLevelItem(projects)
         for file in sorted((ROOT/'src/content/projects').glob('*.yaml')):item=QTreeWidgetItem([file.stem]);item.setData(0,ROLE_KIND,'project');item.setData(0,ROLE_PATH,str(file));projects.addChild(item)
-        self.tree.blockSignals(False);self.pending_badge.setText(f'{len(self.changes)} 篇未发布');self.pending_badge.setStyleSheet('color:#a6382b' if self.changes else '')
         if target_item:self.tree.setCurrentItem(target_item)
+        self.tree.blockSignals(False);self.pending_badge.setText(f'{len(self.changes)} 篇未发布');self.pending_badge.setStyleSheet('color:#a6382b' if self.changes else '')
 
     def refresh_change_markers(self):
         latest=git_article_changes(ROOT)
@@ -355,8 +359,48 @@ class Studio(QMainWindow):
 
     def preview_url(self):return QUrl(f'http://127.0.0.1:{self.port}{self.preview_path}')
     def preview_loaded(self,success):
-        if success:self.preview_ready=True;self.preview_status.setText('● 实时连接');self.sync_preview_theme()
+        if success:self.preview_ready=True;self.preview_status.setText('● 实时连接');self.sync_preview_theme();QTimer.singleShot(80,self.schedule_cursor_sync)
         elif self.port_open():QTimer.singleShot(250,lambda:self.preview.setUrl(self.preview_url()))
+
+    def schedule_cursor_sync(self):
+        if self.loading or not self.current_file:return
+        self.editor_sync_mode='cursor';self.editor_sync_timer.start()
+
+    def schedule_editor_scroll_sync(self,*_):
+        if self.loading or self.applying_preview_scroll or not self.current_file:return
+        if not (self.editor_sync_timer.isActive() and self.editor_sync_mode=='cursor'):self.editor_sync_mode='scroll'
+        self.editor_sync_timer.start()
+
+    def editor_scroll_ratio(self):
+        if self.editor_sync_mode=='cursor':return self.editor.textCursor().position()/max(1,self.editor.document().characterCount()-1)
+        bar=self.editor.verticalScrollBar();return (bar.value()-bar.minimum())/max(1,bar.maximum()-bar.minimum())
+
+    def sync_preview_to_editor(self):
+        if not self.preview_ready or not self.current_file:return
+        ratio=max(0.0,min(1.0,self.editor_scroll_ratio()))
+        self.preview_scroll_suppressed_until=time.monotonic()+.4
+        script=f"""
+        (()=>{{const prose=document.querySelector('.prose');if(!prose)return false;
+          const rect=prose.getBoundingClientRect(),top=rect.top+scrollY;
+          const target=Math.max(0,Math.min(document.documentElement.scrollHeight-innerHeight,top+({ratio})*rect.height-innerHeight*.28));
+          window.scrollTo({{top:target,behavior:'instant'}});return true}})()
+        """
+        self.preview.page().runJavaScript(script)
+
+    def poll_preview_scroll(self):
+        if not self.preview_ready or not self.current_file:return
+        script="""
+        (()=>{const prose=document.querySelector('.prose');if(!prose)return null;
+          const rect=prose.getBoundingClientRect(),top=rect.top+scrollY;
+          return Math.max(0,Math.min(1,(scrollY+innerHeight*.28-top)/Math.max(1,rect.height)));})()
+        """
+        self.preview.page().runJavaScript(script,self.apply_preview_scroll)
+
+    def apply_preview_scroll(self,ratio):
+        if time.monotonic()<self.preview_scroll_suppressed_until or not isinstance(ratio,(int,float)):return
+        ratio=max(0.0,min(1.0,float(ratio)))
+        bar=self.editor.verticalScrollBar();target=round(bar.minimum()+ratio*(bar.maximum()-bar.minimum()))
+        self.applying_preview_scroll=True;bar.setValue(target);self.applying_preview_scroll=False
 
     def resize_preview(self,index):
         widths=[16777215,820,390];self.preview_frame.setMaximumWidth(widths[index]);self.preview_frame.setMinimumWidth(0 if index==0 else widths[index]);self.preview_frame.parentWidget().layout().setAlignment(self.preview_frame,Qt.AlignHCenter)
@@ -501,7 +545,7 @@ class Studio(QMainWindow):
         self.reload_content();self.change_detail.setText('✓ 所有已提交文章都已发布，未发布标记已刷新。');QMessageBox.information(self,'发布完成','提交已推送。红点已清除，GitHub Actions 正在部署网站。')
 
     def closeEvent(self,event:QCloseEvent):
-        self.save_timer.stop();self.save_current();self.preview_watchdog.stop();self.sync_process.terminate();self.sync_process.waitForFinished(600);self.dev.terminate();self.dev.waitForFinished(1300);self.executor.shutdown(wait=False,cancel_futures=True)
+        self.save_timer.stop();self.save_current();self.preview_watchdog.stop();self.preview_scroll_timer.stop();self.sync_process.terminate();self.sync_process.waitForFinished(600);self.dev.terminate();self.dev.waitForFinished(1300);self.executor.shutdown(wait=False,cancel_futures=True)
         if self.server_pid:
             try:os.kill(self.server_pid,signal.SIGTERM)
             except ProcessLookupError:pass
