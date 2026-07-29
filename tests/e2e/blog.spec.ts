@@ -4,6 +4,8 @@ test('首页包含核心内容且没有横向溢出', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /把复杂世界/ })).toBeVisible();
   await expect(page.getByRole('link', { name: '开始阅读' })).toBeVisible();
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.png');
+  await expect(page.locator('.brand img[src="/prism-icon.png"]')).toHaveCount(1);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
   for (const label of ['首页', '合集', '分类', '项目', '关于']) await expect(page.locator('#site-nav a', { hasText: label })).toHaveCount(1);
@@ -22,6 +24,8 @@ test('文章页提供目录与代码复制', async ({ page }) => {
   await page.goto('/blog/building-a-digital-garden/');
   await expect(page.getByRole('navigation', { name: '按合集相邻文章' })).toBeVisible();
   await expect(page.getByRole('button', { name: '复制代码' })).toBeVisible();
+  await expect(page.locator('.byline')).toContainText(/\d+ 字/);
+  await expect(page.locator('.byline')).toContainText(/约 \d+ 分钟阅读/);
 });
 
 test('合集书架按显式章节顺序展示并支持双模式翻页',async({page})=>{await page.goto('/blog/');await expect(page.getByRole('heading',{name:'数字花园札记'})).toBeVisible();const chapters=page.locator('.book li strong');await expect(chapters.nth(0)).toHaveText('把博客当作一座数字花园');await page.goto('/blog/designing-with-constraints/?nav=category');await expect(page.getByRole('button',{name:'按分类'})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('navigation',{name:'按分类相邻文章'})).toBeVisible()});

@@ -2,12 +2,7 @@
 interface Props { size?: number; label?: string; }
 const { size = 40, label } = Astro.props;
 ---
-<svg class="prism-logo" width={size} height={size} viewBox="0 0 48 48" role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : 'true'}>
-  <path d="M4 25h12" />
-  <path d="M23.5 10 35 34H12L23.5 10Z" />
-  <path d="m17 25 7-5 6 9" class="facet" />
-  <path d="M30 29h14M30 29l12-7M30 29l10 10" />
-</svg>
+<img class="prism-logo" src="/prism-icon.png" width={size} height={size} alt={label || ''} aria-hidden={label ? undefined : 'true'} />
 <style>
-  .prism-logo{overflow:visible;color:inherit}.prism-logo path{fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round}.prism-logo .facet{stroke:var(--accent);stroke-width:1.8}
+  .prism-logo{display:block;object-fit:cover;border-radius:1px}
 </style>

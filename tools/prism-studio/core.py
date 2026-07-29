@@ -1,11 +1,23 @@
 from __future__ import annotations
-import json, os, re, shutil, socket, subprocess, tempfile
+import json, os, re, shutil, socket, subprocess, tempfile, unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
 import yaml
 
 IMAGE_EXTENSIONS={'.webp','.avif','.png','.jpg','.jpeg'}
+KNOWN_TOOL_DIRS=(Path('/opt/homebrew/bin'),Path('/usr/local/bin'),Path('/usr/bin'),Path('/bin'))
+
+def resolve_command(name:str)->str|None:
+    found=shutil.which(name)
+    if found:return found
+    for directory in KNOWN_TOOL_DIRS:
+        candidate=directory/name
+        if candidate.exists() and os.access(candidate,os.X_OK):return str(candidate)
+    try:
+        result=subprocess.run(['/bin/zsh','-lc',f'command -v {name}'],capture_output=True,text=True,timeout=4)
+        return result.stdout.strip() if result.returncode==0 and result.stdout.strip() else None
+    except (OSError,subprocess.TimeoutExpired):return None
 
 def split_frontmatter(source:str)->tuple[dict,str]:
     match=re.match(r'^---\r?\n(.*?)\r?\n---(?:\r?\n)*',source,re.S)
@@ -48,9 +60,13 @@ def yaml_quote(value):return json.dumps(value,ensure_ascii=False)
 
 def import_project(repo_value:str,repo_root:Path,runner:Callable=subprocess.run)->Path:
     repo=normalize_repo(repo_value)
-    auth=runner(['gh','auth','status','-h','github.com'],cwd=repo_root,capture_output=True,text=True)
+    gh=resolve_command('gh')
+    if not gh:raise RuntimeError('未找到 GitHub CLI。请先安装 gh，或从终端启动 Prism Studio。')
+    try:auth=runner([gh,'auth','status','-h','github.com'],cwd=repo_root,capture_output=True,text=True,timeout=10)
+    except subprocess.TimeoutExpired:raise RuntimeError('GitHub CLI 认证检查超时。请检查网络后重试。')
     if auth.returncode:raise RuntimeError('GitHub CLI 登录无效。请运行：gh auth login -h github.com')
-    result=runner(['gh','api',f'repos/{repo}'],cwd=repo_root,capture_output=True,text=True)
+    try:result=runner([gh,'api',f'repos/{repo}'],cwd=repo_root,capture_output=True,text=True,timeout=15)
+    except subprocess.TimeoutExpired:raise RuntimeError('GitHub API 请求超时；原快照未更改。')
     if result.returncode:raise RuntimeError(result.stderr.strip() or 'GitHub 项目导入失败；原快照未更改。')
     data=json.loads(result.stdout);target=repo_root/'src/content/projects'/f"{repo.lower().replace('/','--')}.yaml"
     old=target.read_text('utf-8') if target.exists() else ''
@@ -69,13 +85,36 @@ def find_port(start:int=4321)->int:
 def command_available(name:str)->bool:return shutil.which(name) is not None
 
 def environment_status(repo_root:Path,runner:Callable=subprocess.run)->dict[str,bool]:
-    status={name:command_available(name) for name in ('node','npm','git','gh')};status['repository']=(repo_root/'.git').exists()
+    tools={name:resolve_command(name) for name in ('node','npm','git','gh')};status={name:bool(path) for name,path in tools.items()};status['repository']=(repo_root/'.git').exists()
     if status['gh']:
-        auth=runner(['gh','auth','status','-h','github.com'],cwd=repo_root,capture_output=True)
-        api=runner(['gh','api','user','--jq','.login'],cwd=repo_root,capture_output=True)
-        status['gh_auth']=auth.returncode==0 and api.returncode==0
+        try:
+            auth=runner([tools['gh'],'auth','status','-h','github.com'],cwd=repo_root,capture_output=True,timeout=6)
+            api=runner([tools['gh'],'api','user','--jq','.login'],cwd=repo_root,capture_output=True,timeout=8)
+            status['gh_auth']=auth.returncode==0 and api.returncode==0
+        except subprocess.TimeoutExpired:status['gh_auth']=False
     else:status['gh_auth']=False
     return status
+
+def slugify_collection(value:str)->str:
+    normalized=unicodedata.normalize('NFKC',value).strip().lower()
+    return re.sub(r'[^\w\u3400-\u9fff.-]+','-',normalized).strip('-') or 'collection'
+
+def create_collection(repo_root:Path,title:str,description:str,slug:str='',subtitle:str='',volume:str='',status:str='ongoing',featured:bool=False,order:int|None=None)->Path:
+    if not title.strip() or not description.strip():raise ValueError('合集标题和简介不能为空。')
+    directory=repo_root/'src/content/collections';directory.mkdir(parents=True,exist_ok=True)
+    existing=[]
+    for file in directory.glob('*.yaml'):
+        try:existing.append(yaml.safe_load(file.read_text('utf-8')) or {})
+        except yaml.YAMLError:continue
+    used={int(item['order']) for item in existing if isinstance(item.get('order'),int)}
+    chosen=order or (max(used,default=0)+1)
+    if chosen<=0:raise ValueError('合集顺序必须是正整数。')
+    if chosen in used:raise ValueError(f'合集顺序 {chosen} 已被使用。')
+    identifier=slugify_collection(slug or title);target=directory/f'{identifier}.yaml'
+    if target.exists():raise FileExistsError(f'合集 slug 已存在：{identifier}')
+    data={'title':title.strip(),'subtitle':subtitle.strip() or None,'description':description.strip(),'order':chosen,'volume':volume.strip() or None,'status':status,'featured':featured}
+    content=yaml.safe_dump({key:value for key,value in data.items() if value not in (None,'')},allow_unicode=True,sort_keys=False)
+    atomic_save(target,content,repo_root,backup=False);return target
 
 def article_assets(article_file:Path,repo_root:Path|None=None)->list[Path]:
     source=article_file.read_text('utf-8');paths=[article_file];data,_=split_frontmatter(source)

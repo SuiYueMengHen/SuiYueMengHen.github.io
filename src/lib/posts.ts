@@ -47,11 +47,25 @@ export function validateCollectionAssignments(posts: Array<Pick<BlogPost, 'id' |
   } return errors;
 }
 
-export function readingMinutes(body = ''): number {
-  const chinese = (body.match(/[\u3400-\u9fff]/g) || []).length;
-  const latin = body.replace(/[\u3400-\u9fff]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(chinese / 300 + latin / 220));
+function readableText(body = ''): string {
+  return body
+    .replace(/^---\s*[\s\S]*?\s*---/, ' ')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[#>*_`~|{}[\]\\]/g, ' ');
 }
+
+export function contentStats(body = ''): { words: number; minutes: number } {
+  const text = readableText(body);
+  const chinese = (text.match(/[\u3400-\u9fff]/g) || []).length;
+  const latin = text.replace(/[\u3400-\u9fff]/g, ' ').match(/[\p{Letter}\p{Number}]+(?:['’\-][\p{Letter}\p{Number}]+)*/gu)?.length ?? 0;
+  return { words: chinese + latin, minutes: Math.max(1, Math.ceil(chinese / 300 + latin / 220)) };
+}
+
+export function wordCount(body = ''): number { return contentStats(body).words; }
+export function readingMinutes(body = ''): number { return contentStats(body).minutes; }
 
 export function relatedPosts(current: BlogPost, posts: BlogPost[], limit = 3): BlogPost[] {
   return visiblePosts(posts)

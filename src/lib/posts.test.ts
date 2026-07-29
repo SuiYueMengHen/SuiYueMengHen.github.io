@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BlogPost, BookCollection, Project } from './posts';
-import { adjacentPosts, categoryPosts, collectionPosts, readingMinutes, relatedPosts, slugify, sortedCollections, sortedProjects, uncollectedByCategory, validateCollectionAssignments, visiblePosts } from './posts';
+import { adjacentPosts, categoryPosts, collectionPosts, contentStats, readingMinutes, relatedPosts, slugify, sortedCollections, sortedProjects, uncollectedByCategory, validateCollectionAssignments, visiblePosts, wordCount } from './posts';
 
 const makePost = (id: string, date: string, overrides: Record<string, unknown> = {}) => ({
   id,
@@ -15,6 +15,8 @@ describe('post utilities', () => {
   it('estimates mixed-language reading time', () => {
     expect(readingMinutes('这是一段中文。')).toBe(1);
     expect(readingMinutes('word '.repeat(500))).toBe(3);
+    expect(wordCount('棱镜 notes 2026')).toBe(4);
+    expect(contentStats('![封面](./cover.png)\n正文 text')).toEqual({ words: 3, minutes: 1 });
   });
   it('filters drafts and sorts newest first', () => {
     const posts = [makePost('old', '2025-01-01'), makePost('draft', '2027-01-01', { draft: true }), makePost('new', '2026-01-01')];

@@ -1,6 +1,6 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import atomic_save,article_assets,copy_images,import_project,publish_commands,serialize_frontmatter,split_frontmatter
+from core import atomic_save,article_assets,copy_images,create_collection,import_project,publish_commands,serialize_frontmatter,split_frontmatter
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
@@ -21,5 +21,15 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):import_project('o/r',root,runner);self.assertEqual(target.read_text('utf-8'),'old')
     def test_publish_command_scopes_current_content(self):
         commands=publish_commands([Path('post/index.md'),Path('post/a.png')],'note',False);self.assertEqual(commands[3],['git','add','--','post/index.md','post/a.png']);self.assertEqual(commands[-1],['git','push'])
+    def test_create_collection_uses_next_order(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);directory=root/'src/content/collections';directory.mkdir(parents=True);(directory/'first.yaml').write_text('title: 第一卷\ndescription: 简介\norder: 2\n','utf-8')
+            target=create_collection(root,'第二卷','新的简介',slug='second')
+            data=target.read_text('utf-8');self.assertEqual(target.name,'second.yaml');self.assertIn('order: 3',data);self.assertIn('title: 第二卷',data)
+    def test_create_collection_rejects_duplicate_slug_and_order(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);directory=root/'src/content/collections';directory.mkdir(parents=True);(directory/'book.yaml').write_text('title: 书\ndescription: 简介\norder: 1\n','utf-8')
+            with self.assertRaises(FileExistsError):create_collection(root,'书','简介',slug='book')
+            with self.assertRaises(ValueError):create_collection(root,'另一本','简介',slug='other',order=1)
 
 if __name__=='__main__':unittest.main()
