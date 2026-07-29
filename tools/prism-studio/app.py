@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import signal
 import socket
@@ -10,8 +11,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QProcess, QRect, QTimer, QUrl, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QImage, QPainter, QPen, QPixmap
+from PySide6.QtCore import QProcess, QProcessEnvironment, QRect, QTimer, QUrl, Qt, Signal
+from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QImage, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QInputDialog, QLabel,
@@ -23,25 +24,56 @@ from PySide6.QtWidgets import (
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from core import (
-    article_assets, atomic_save, content_catalog, copy_images, create_collection,
+    article_assets, atomic_save, command_environment, content_catalog, copy_images, create_collection,
     environment_status, find_port, git_article_changes, import_project,
     publish_commands, reorder_collection, resolve_command, serialize_frontmatter,
     split_frontmatter, trash_article,
 )
 
 
+def valid_root(path: Path) -> bool:
+    return (path / 'package.json').is_file() and (path / 'src/content/blog').is_dir()
+
+
+def app_settings_path() -> Path:
+    return Path.home() / 'Library/Application Support/Prism Studio/settings.json'
+
+
+def read_app_settings() -> dict:
+    try:return json.loads(app_settings_path().read_text('utf-8'))
+    except (OSError,json.JSONDecodeError):return {}
+
+
+def write_app_settings(data: dict) -> None:
+    try:path=app_settings_path();path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(data,ensure_ascii=False,indent=2),'utf-8')
+    except OSError:pass
+
+
 def discover_root() -> Path:
-    starts = [Path(os.environ['PRISM_NOTES_ROOT']).expanduser() for _ in [0] if os.environ.get('PRISM_NOTES_ROOT')]
-    starts.extend([Path.cwd(), Path(sys.executable).resolve().parent, Path(__file__).resolve().parent])
+    saved=read_app_settings().get('workspace');starts=[Path(os.environ['PRISM_NOTES_ROOT']).expanduser() for _ in [0] if os.environ.get('PRISM_NOTES_ROOT')]
+    if saved:starts.append(Path(saved).expanduser())
+    starts.extend([Path.cwd(),Path(sys.executable).resolve().parent,Path(__file__).resolve().parent,Path.home()/'Desktop/blog',Path.home()/'Documents/blog'])
     for start in starts:
         for candidate in (start, *start.parents):
-            if (candidate / 'package.json').exists() and (candidate / 'src/content/blog').is_dir():
-                return candidate
+            if valid_root(candidate):return candidate
     return Path.cwd()
 
 
 def resource_path(relative: str) -> Path:
     return Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / relative
+
+
+def configure_process(process: QProcess) -> None:
+    environment=QProcessEnvironment.systemEnvironment()
+    for key,value in command_environment().items():environment.insert(key,value)
+    process.setProcessEnvironment(environment)
+
+
+def semantic_value(value):
+    if isinstance(value,date):return value.isoformat()
+    if isinstance(value,list):return [semantic_value(item) for item in value]
+    if isinstance(value,dict):return {key:semantic_value(item) for key,item in value.items() if item not in (None,'',[])}
+    return value
 
 
 ROOT = discover_root()
@@ -60,7 +92,7 @@ class TagPicker(QWidget):
         self.list = QListWidget();self.list.setObjectName('tagPool');self.list.setMinimumHeight(108);self.list.itemChanged.connect(lambda *_: self.changed.emit());layout.addWidget(self.list)
 
     def set_pool(self, pool: list[str], selected: list[str]):
-        self.list.blockSignals(True);self.list.clear();all_tags=sorted(set(pool)|set(selected))
+        self.list.blockSignals(True);self.list.clear();all_tags=list(dict.fromkeys([*selected,*sorted(set(pool)-set(selected))]))
         for tag in all_tags:
             item=QListWidgetItem(tag);item.setFlags(item.flags()|Qt.ItemIsUserCheckable);item.setCheckState(Qt.Checked if tag in selected else Qt.Unchecked);self.list.addItem(item)
         self.list.blockSignals(False)
@@ -139,20 +171,21 @@ class ContentTree(QTreeWidget):
 
 class Studio(QMainWindow):
     def __init__(self):
-        super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760)
-        self.current_file:Path|None=None;self.original_metadata={};self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.catalog={};self.changes={};self.preview_path='/';self.preview_ready=False;self.preview_failures=0;self.server_pid=None;self.executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix='prism-studio');self.environment_future=None;self.port=find_port();self.dev=QProcess(self);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(700,self.ensure_preview))
+        super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760);self.theme=read_app_settings().get('theme','light')
+        self.current_file:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.catalog={};self.changes={};self.preview_path='/';self.preview_ready=False;self.preview_failures=0;self.server_pid=None;self.executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix='prism-studio');self.environment_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(700,self.ensure_preview))
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(180);self.save_timer.timeout.connect(self.save_current)
         self.marker_timer=QTimer(self);self.marker_timer.setInterval(2200);self.marker_timer.timeout.connect(self.refresh_change_markers)
         self.preview_watchdog=QTimer(self);self.preview_watchdog.setInterval(1200);self.preview_watchdog.timeout.connect(self.ensure_preview)
-        self.sync_process=QProcess(self);self.sync_process.setProcessChannelMode(QProcess.MergedChannels);self.sync_process.finished.connect(self.auto_sync_finished)
+        self.sync_process=QProcess(self);configure_process(self.sync_process);self.sync_process.setProcessChannelMode(QProcess.MergedChannels);self.sync_process.finished.connect(self.auto_sync_finished)
         self.build_ui();self.reload_content();self.start_preview();self.check_environment();self.marker_timer.start();self.preview_watchdog.start();QTimer.singleShot(2500,self.auto_sync)
+        if valid_root(ROOT):settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme});write_app_settings(settings)
 
     def panel(self,name):frame=QFrame();frame.setObjectName(name);return frame
 
     def build_ui(self):
         root=QWidget();outer=QVBoxLayout(root);outer.setContentsMargins(14,14,14,14);outer.setSpacing(10);self.setCentralWidget(root)
         top=QFrame();top.setObjectName('topbar');bar=QHBoxLayout(top);bar.setContentsMargins(16,8,12,8)
-        brand=QLabel('PRISM  /  STUDIO');brand.setObjectName('wordmark');bar.addWidget(brand);self.workspace_status=QLabel('本地内容工作台');self.workspace_status.setObjectName('muted');bar.addWidget(self.workspace_status);bar.addStretch();sync=QPushButton('同步 GitHub');sync.clicked.connect(self.sync_repository);bar.addWidget(sync);env=QPushButton('检测环境');env.clicked.connect(self.check_environment);bar.addWidget(env);outer.addWidget(top)
+        brand=QLabel('PRISM  /  STUDIO');brand.setObjectName('wordmark');bar.addWidget(brand);self.workspace_status=QLabel('本地内容工作台');self.workspace_status.setObjectName('muted');bar.addWidget(self.workspace_status);bar.addStretch();workspace=QPushButton('选择工作区');workspace.clicked.connect(self.choose_workspace);bar.addWidget(workspace);sync=QPushButton('同步 GitHub');sync.clicked.connect(self.sync_repository);bar.addWidget(sync);env=QPushButton('检测环境');env.clicked.connect(self.check_environment);bar.addWidget(env);self.theme_button=QPushButton();self.theme_button.clicked.connect(self.toggle_theme);bar.addWidget(self.theme_button);outer.addWidget(top)
         split=QSplitter(Qt.Horizontal);split.setChildrenCollapsible(False);outer.addWidget(split,1)
 
         left=self.panel('panel');lv=QVBoxLayout(left);lv.setContentsMargins(14,16,14,14);lv.setSpacing(10)
@@ -163,8 +196,8 @@ class Studio(QMainWindow):
         self.change_detail=QLabel('选择文章后，这里会显示尚未发布的变更。');self.change_detail.setObjectName('changeDetail');self.change_detail.setWordWrap(True);lv.addWidget(self.change_detail);split.addWidget(left)
 
         middle=self.panel('panel');mv=QVBoxLayout(middle);mv.setContentsMargins(18,16,18,14);mv.setSpacing(10)
-        editor_head=QHBoxLayout();self.current_title=QLabel('请选择一篇文章');self.current_title.setObjectName('panelTitle');self.save_state=QLabel('等待编辑');self.save_state.setObjectName('muted');editor_head.addWidget(self.current_title);editor_head.addStretch();editor_head.addWidget(self.save_state);mv.addLayout(editor_head)
-        self.tabs=QTabWidget();form_scroll=QScrollArea();form_scroll.setWidgetResizable(True);form_scroll.setFrameShape(QFrame.NoFrame);form=QWidget();layout=QFormLayout(form);layout.setContentsMargins(12,14,12,12);layout.setSpacing(11);layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        editor_head=QHBoxLayout();self.current_title=QLabel('请选择一篇文章');self.current_title.setObjectName('panelTitle');self.save_state=QLabel('等待编辑');self.save_state.setObjectName('muted');self.focus_button=QPushButton('专注写作');self.focus_button.clicked.connect(self.toggle_focus_mode);editor_head.addWidget(self.current_title);editor_head.addStretch();editor_head.addWidget(self.save_state);editor_head.addWidget(self.focus_button);mv.addLayout(editor_head)
+        self.tabs=QTabWidget();self.tabs.setMinimumHeight(235);self.form_scroll=QScrollArea();self.form_scroll.setObjectName('formScroll');self.form_scroll.viewport().setObjectName('formViewport');self.form_scroll.setWidgetResizable(True);self.form_scroll.setFrameShape(QFrame.NoFrame);self.form_surface=QWidget();self.form_surface.setObjectName('formSurface');layout=QFormLayout(self.form_surface);layout.setContentsMargins(12,14,12,12);layout.setSpacing(11);layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.title_field=QLineEdit();layout.addRow('标题',self.title_field)
         self.description=QTextEdit();self.description.setMinimumHeight(92);self.description.setPlaceholderText('用两到三句话概括文章内容，这段文字会用于列表与搜索摘要。');layout.addRow('摘要',self.description)
         category_row=QHBoxLayout();self.category=QComboBox();self.category.setEditable(True);self.category.setInsertPolicy(QComboBox.NoInsert);add_category=QPushButton('新建');add_category.setProperty('compact',True);add_category.clicked.connect(self.add_category);category_row.addWidget(self.category,1);category_row.addWidget(add_category);layout.addRow('分类',category_row)
@@ -175,8 +208,9 @@ class Studio(QMainWindow):
         self.cover_alt=QLineEdit();self.cover_alt.setPlaceholderText('描述封面画面，供无障碍阅读使用');layout.addRow('封面替代文本',self.cover_alt)
         self.date=QDateEdit();self.date.setCalendarPopup(True);self.date.setDate(date.today());layout.addRow('发布日期',self.date);self.canonical=QLineEdit();layout.addRow('Canonical URL',self.canonical)
         checks=QHBoxLayout();self.draft=QCheckBox('草稿');self.featured=QCheckBox('首页推荐');checks.addWidget(self.draft);checks.addWidget(self.featured);checks.addStretch();layout.addRow('状态',checks)
-        form_scroll.setWidget(form);self.tabs.addTab(form_scroll,'文章信息');mv.addWidget(self.tabs,0)
-        self.editor=QPlainTextEdit();self.editor.setObjectName('markdownEditor');font=QFont('SF Mono',13);font.setStyleHint(QFont.Monospace);self.editor.setFont(font);self.editor.setPlaceholderText('在这里开始写作…');mv.addWidget(self.editor,1)
+        self.form_scroll.setWidget(self.form_surface);self.tabs.addTab(self.form_scroll,'文章信息')
+        self.editor=QPlainTextEdit();self.editor.setObjectName('markdownEditor');self.editor.setMinimumHeight(350);font=QFont('SF Mono',13);font.setStyleHint(QFont.Monospace);self.editor.setFont(font);self.editor.setPlaceholderText('在这里开始写作…')
+        self.editor_split=QSplitter(Qt.Vertical);self.editor_split.setChildrenCollapsible(False);self.editor_split.addWidget(self.tabs);self.editor_split.addWidget(self.editor);self.editor_split.setSizes([285,590]);mv.addWidget(self.editor_split,1)
         tools=QHBoxLayout();image=QPushButton('插入图片');image.clicked.connect(self.insert_images);self.project_button=QPushButton('插入 GitHub 项目');self.project_button.clicked.connect(self.add_project);tools.addWidget(image);tools.addWidget(self.project_button);tools.addStretch();mv.addLayout(tools);split.addWidget(middle)
 
         right=self.panel('panel');rv=QVBoxLayout(right);rv.setContentsMargins(14,16,14,14);rv.setSpacing(10)
@@ -186,20 +220,43 @@ class Studio(QMainWindow):
         publish=QHBoxLayout();self.publish_current=QPushButton('发布当前文章');self.publish_current.clicked.connect(lambda:self.publish(False));self.publish_all=QPushButton('发布全部变更');self.publish_all.setProperty('primary',True);self.publish_all.clicked.connect(lambda:self.publish(True));publish.addWidget(self.publish_current);publish.addWidget(self.publish_all);rv.addLayout(publish);split.addWidget(right);split.setSizes([300,620,650])
 
         for signal_object in [self.title_field.textChanged,self.description.textChanged,self.category.currentTextChanged,self.collection.currentIndexChanged,self.order.valueChanged,self.tags.changed,self.cover.textChanged,self.cover_alt.textChanged,self.date.dateChanged,self.canonical.textChanged,self.draft.toggled,self.featured.toggled,self.editor.textChanged]:signal_object.connect(self.schedule_save)
-        self.setStyleSheet(self.stylesheet())
+        self.apply_theme()
+
+    def theme_colors(self):
+        if self.theme=='dark':return {'bg':'#141412','surface':'#1f1f1b','surface2':'#292823','input':'#25241f','text':'#f0ede5','muted':'#aaa59b','border':'#47443d','hover':'#34322c','pressed':'#403d35','selected':'#403a32','button':'#292823','primary':'#f0ede5','on_primary':'#171713','danger':'#ef7765','danger_border':'#805047','badge':'#302d27','live_bg':'#18352c','live':'#8bd4b7','preview':'#090908','scroll':'#5b574e'}
+        return {'bg':'#dedbd3','surface':'#f7f5ef','surface2':'#eeeae2','input':'#fffefa','text':'#171713','muted':'#6f6b63','border':'#cbc7bc','hover':'#ece7dd','pressed':'#ddd6c9','selected':'#dfd9cc','button':'#fdfcf8','primary':'#171713','on_primary':'#fffefa','danger':'#a6382b','danger_border':'#d5a59d','badge':'#e9e5dc','live_bg':'#e2efe8','live':'#26735d','preview':'#27251f','scroll':'#bcb7ac'}
 
     def stylesheet(self):
-        return '''
-        QMainWindow{background:#dedbd3;color:#171713} QWidget{font-family:-apple-system,"Helvetica Neue";font-size:13px;color:#171713}
-        #topbar,#panel{background:#f7f5ef;border:1px solid #cbc7bc;border-radius:12px} #wordmark{font-family:"Times New Roman";font-size:15px;font-weight:700;letter-spacing:3px} #panelTitle{font-family:"Times New Roman";font-size:19px;font-weight:700}
-        #muted,#previewStatus{color:#77736a} #badge{padding:4px 9px;background:#e9e5dc;border-radius:9px;color:#5e5a52;font-size:11px} #liveStatus{color:#26735d;font-size:11px;padding:3px 8px;background:#e2efe8;border-radius:8px}
-        QTreeWidget,QPlainTextEdit,QTextEdit,QLineEdit,QDateEdit,QSpinBox,QComboBox,QListWidget{background:#fffefa;border:1px solid #cbc7bc;border-radius:8px;padding:6px;selection-background-color:#e7ddd0;selection-color:#171713}
-        QTreeWidget{padding:7px} QTreeWidget::item{min-height:29px;border-radius:6px;padding:2px 5px} QTreeWidget::item:hover{background:#eeeae1} QTreeWidget::item:selected{background:#dfd9cc;color:#171713}
-        #markdownEditor{padding:16px;font-size:14px;line-height:1.5} #tagPool::item{min-height:25px} QTabWidget::pane{border:1px solid #cbc7bc;border-radius:8px;background:#fbfaf6} QTabBar::tab{padding:8px 14px;color:#6f6b63} QTabBar::tab:selected{color:#171713;border-bottom:2px solid #c84a38}
-        QPushButton{min-height:36px;padding:4px 12px;border:1px solid #aaa59a;border-radius:8px;background:#fdfcf8} QPushButton:hover{background:#ece7dd;border-color:#777168} QPushButton:pressed{background:#ddd6c9} QPushButton[primary="true"]{background:#171713;color:#fffefa;border-color:#171713;font-weight:600} QPushButton[primary="true"]:hover{background:#38362f} QPushButton[danger="true"]{color:#a6382b;border-color:#d5a59d} QPushButton[compact="true"]{min-height:30px;padding:2px 9px} QPushButton:disabled{color:#aaa69e;background:#ebe8e1;border-color:#d6d2c9}
-        #changeDetail{padding:10px;background:#eeeae2;border-radius:8px;color:#625e56;font-size:11px} #previewFrame{background:#27251f;border:1px solid #b6b1a6;border-radius:10px;padding:6px} QSplitter::handle{background:transparent;width:9px}
-        QScrollBar:vertical{width:9px;background:transparent} QScrollBar::handle:vertical{background:#bcb7ac;border-radius:4px;min-height:30px} QToolTip{background:#171713;color:#fffefa;border:0;padding:6px}
+        c=self.theme_colors();arrow=str(resource_path(f"assets/chevron-{'dark' if self.theme=='dark' else 'light'}.svg"))
+        css='''
+        QMainWindow{background:$BG;color:$TEXT} QWidget{font-family:-apple-system,"Helvetica Neue";font-size:13px;color:$TEXT;background:transparent}
+        #topbar,#panel{background:$SURFACE;border:1px solid $BORDER;border-radius:12px} #wordmark{font-family:"Times New Roman";font-size:15px;font-weight:700;letter-spacing:3px} #panelTitle{font-family:"Times New Roman";font-size:19px;font-weight:700}
+        #muted,#previewStatus{color:$MUTED} #badge{padding:4px 9px;background:$BADGE;border-radius:9px;color:$MUTED;font-size:11px} #liveStatus{color:$LIVE;font-size:11px;padding:3px 8px;background:$LIVEBG;border-radius:8px}
+        QScrollArea#formScroll,QWidget#formViewport,QWidget#formSurface{background-color:$SURFACE;color:$TEXT} QTabWidget::pane{border:1px solid $BORDER;border-radius:8px;background:$SURFACE}
+        QTreeWidget,QPlainTextEdit,QTextEdit,QLineEdit,QDateEdit,QSpinBox,QComboBox,QListWidget{background:$INPUT;color:$TEXT;border:1px solid $BORDER;border-radius:8px;padding:7px;selection-background-color:$SELECTED;selection-color:$TEXT}
+        QLineEdit:read-only{background:$SURFACE2;color:$MUTED} QTreeWidget{padding:7px} QTreeWidget::item{min-height:29px;border-radius:6px;padding:2px 5px} QTreeWidget::item:hover{background:$HOVER} QTreeWidget::item:selected{background:$SELECTED;color:$TEXT}
+        QComboBox{padding-right:34px;min-height:25px} QComboBox::drop-down{subcontrol-origin:padding;subcontrol-position:top right;width:30px;border-left:1px solid $BORDER;border-top-right-radius:7px;border-bottom-right-radius:7px;background:$SURFACE2} QComboBox::drop-down:hover{background:$HOVER} QComboBox::down-arrow{image:url("$ARROW");width:12px;height:8px} QComboBox QAbstractItemView{background:$INPUT;color:$TEXT;border:1px solid $BORDER;outline:0;padding:5px;selection-background-color:$SELECTED;selection-color:$TEXT}
+        #markdownEditor{padding:18px;font-size:14px;line-height:1.5;background:$INPUT} #tagPool::item{min-height:25px} QTabBar::tab{padding:8px 14px;color:$MUTED;background:transparent} QTabBar::tab:selected{color:$TEXT;border-bottom:2px solid #c84a38}
+        QPushButton{min-height:36px;padding:4px 12px;border:1px solid $BORDER;border-radius:8px;background:$BUTTON;color:$TEXT} QPushButton:hover{background:$HOVER} QPushButton:pressed{background:$PRESSED} QPushButton[primary="true"]{background:$PRIMARY;color:$ONPRIMARY;border-color:$PRIMARY;font-weight:600} QPushButton[danger="true"]{color:$DANGER;border-color:$DANGERBORDER} QPushButton[compact="true"]{min-height:30px;padding:2px 9px} QPushButton:disabled{color:$MUTED;background:$SURFACE2;border-color:$BORDER}
+        #changeDetail{padding:10px;background:$SURFACE2;border-radius:8px;color:$MUTED;font-size:11px} #previewFrame{background:$PREVIEW;border:1px solid $BORDER;border-radius:10px;padding:6px} QSplitter::handle{background:transparent;width:9px;height:9px} QSplitter::handle:hover{background:$BORDER;border-radius:3px}
+        QScrollBar:vertical{width:9px;background:transparent} QScrollBar::handle:vertical{background:$SCROLL;border-radius:4px;min-height:30px} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0} QToolTip{background:$TEXT;color:$INPUT;border:0;padding:6px}
         '''
+        replacements={'$BG':c['bg'],'$SURFACE2':c['surface2'],'$SURFACE':c['surface'],'$INPUT':c['input'],'$TEXT':c['text'],'$MUTED':c['muted'],'$BORDER':c['border'],'$HOVER':c['hover'],'$PRESSED':c['pressed'],'$SELECTED':c['selected'],'$BUTTON':c['button'],'$PRIMARY':c['primary'],'$ONPRIMARY':c['on_primary'],'$DANGERBORDER':c['danger_border'],'$DANGER':c['danger'],'$BADGE':c['badge'],'$LIVEBG':c['live_bg'],'$LIVE':c['live'],'$PREVIEW':c['preview'],'$SCROLL':c['scroll'],'$ARROW':arrow}
+        for token,value in replacements.items():css=css.replace(token,value)
+        return css
+
+    def apply_theme(self):
+        c=self.theme_colors();palette=QPalette();palette.setColor(QPalette.Window,QColor(c['bg']));palette.setColor(QPalette.WindowText,QColor(c['text']));palette.setColor(QPalette.Base,QColor(c['input']));palette.setColor(QPalette.AlternateBase,QColor(c['surface2']));palette.setColor(QPalette.Text,QColor(c['text']));palette.setColor(QPalette.Button,QColor(c['button']));palette.setColor(QPalette.ButtonText,QColor(c['text']));palette.setColor(QPalette.Highlight,QColor(c['selected']));palette.setColor(QPalette.HighlightedText,QColor(c['text']));QApplication.instance().setPalette(palette);surface_palette=self.form_surface.palette();surface_palette.setColor(QPalette.Window,QColor(c['surface']));surface_palette.setColor(QPalette.Base,QColor(c['surface']));self.form_surface.setPalette(surface_palette);self.form_surface.setAutoFillBackground(True);self.form_scroll.viewport().setPalette(surface_palette);self.form_scroll.viewport().setAutoFillBackground(True);self.setStyleSheet(self.stylesheet());self.theme_button.setText('浅色模式' if self.theme=='dark' else '深色模式');self.sync_preview_theme()
+
+    def toggle_theme(self):
+        self.theme='dark' if self.theme=='light' else 'light';settings=read_app_settings();settings.update({'theme':self.theme,'workspace':str(ROOT)});write_app_settings(settings);self.apply_theme()
+
+    def sync_preview_theme(self):
+        if not hasattr(self,'preview'):return
+        theme=json.dumps(self.theme);self.preview.page().runJavaScript(f"localStorage.setItem('prism-theme',{theme});document.documentElement.dataset.theme={theme};document.documentElement.style.colorScheme={theme};window.dispatchEvent(new CustomEvent('prism-theme-change',{{detail:{{theme:{theme}}}}}));")
+
+    def toggle_focus_mode(self):
+        visible=self.tabs.isVisible();self.tabs.setVisible(not visible);self.focus_button.setText('显示文章信息' if visible else '专注写作');self.editor.setFocus()
 
     def schedule_save(self,*_):
         if not self.loading and self.current_file:self.document_dirty=True;self.save_state.setText('正在编辑 · 尚未保存');self.save_timer.start()
@@ -218,7 +275,7 @@ class Studio(QMainWindow):
         if article.get('collection'):flags|=Qt.ItemIsDragEnabled
         item.setFlags(flags)
         if changed:
-            item.setForeground(0,QColor('#b23b2c'));item.setToolTip(0,f"未发布：{changed['status']} · +{changed['added']} / -{changed['deleted']}\n"+'\n'.join(changed['files']))
+            item.setForeground(0,QColor(self.theme_colors()['danger']));item.setToolTip(0,f"未发布：{changed['status']} · +{changed['added']} / -{changed['deleted']}\n"+'\n'.join(changed['files']))
         return item
 
     def load_tree(self,selected_path=None):
@@ -262,6 +319,7 @@ class Studio(QMainWindow):
         if not status['gh_auth']:self.log.appendPlainText('gh API 认证无效：仅项目导入被禁用；Git/SSH 发布不受影响。')
 
     def start_preview(self):
+        if not valid_root(ROOT):self.preview_status.setText('请选择正确的博客工作区');self.workspace_status.setText('工作区不可用');return
         npm=resolve_command('npm')
         if not npm:self.preview_status.setText('缺少 npm');return
         if self.dev.state()!=QProcess.NotRunning:return
@@ -297,7 +355,7 @@ class Studio(QMainWindow):
 
     def preview_url(self):return QUrl(f'http://127.0.0.1:{self.port}{self.preview_path}')
     def preview_loaded(self,success):
-        if success:self.preview_ready=True;self.preview_status.setText('● 实时连接')
+        if success:self.preview_ready=True;self.preview_status.setText('● 实时连接');self.sync_preview_theme()
         elif self.port_open():QTimer.singleShot(250,lambda:self.preview.setUrl(self.preview_url()))
 
     def resize_preview(self,index):
@@ -307,10 +365,23 @@ class Studio(QMainWindow):
         items=self.tree.selectedItems();item=items[0] if items else None
         if not item or item.data(0,ROLE_KIND)!='article':return
         path=Path(item.data(0,ROLE_PATH))
+        if not path.is_file():self.reload_content();QMessageBox.warning(self,'文章文件不存在',f'找不到：{path}\n\n内容库已刷新。若博客目录被移动，请点击顶部“选择工作区”。');return
         if self.current_file and self.current_file!=path:self.save_timer.stop();self.save_current()
-        data,body=split_frontmatter(path.read_text('utf-8'));self.current_file=path;self.original_metadata=dict(data);self.loading=True;self.title_field.setText(str(data.get('title','')));self.description.setPlainText(str(data.get('description','')));self.category.setEditText(str(data.get('category','')));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.editor.setPlainText(body);self.loading=False
+        try:data,body=split_frontmatter(path.read_text('utf-8'))
+        except OSError as error:QMessageBox.warning(self,'无法打开文章',f'{error}\n\n请确认工作区与文件权限。');return
+        self.current_file=path;self.original_metadata=dict(data);self.original_body=body;self.loading=True;self.title_field.setText(str(data.get('title','')));self.description.setPlainText(str(data.get('description','')));self.category.setEditText(str(data.get('category','')));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.editor.setPlainText(body);self.loading=False
         self.document_dirty=False;self.loaded_view_state=self.view_state();self.current_title.setText(data.get('title',path.parent.name));self.save_state.setText('已保存到本地');self.preview_path=f'/blog/{path.parent.name}/';self.publish_current.setEnabled(True);changed=self.changes.get(path.parent.name);self.change_detail.setText(f"● 尚未发布 · {changed['status']} · 新增 {changed['added']} 行 / 删除 {changed['deleted']} 行\n"+'\n'.join(changed['files']) if changed else '✓ 当前文章与 Git 仓库一致，没有未发布修改。')
         if self.preview_ready:self.preview.setUrl(self.preview_url())
+
+    def choose_workspace(self):
+        global ROOT
+        selected=QFileDialog.getExistingDirectory(self,'选择 Prism Notes 博客目录',str(ROOT if ROOT.exists() else Path.home()))
+        if not selected:return
+        candidate=Path(selected)
+        if not valid_root(candidate):return QMessageBox.warning(self,'不是有效的博客目录','所选目录需要包含 package.json 与 src/content/blog。')
+        self.save_timer.stop();self.save_current();ROOT=candidate.resolve();settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme});write_app_settings(settings);self.current_file=None
+        if self.dev.state()!=QProcess.NotRunning:self.dev.terminate();self.dev.waitForFinished(1500)
+        self.reload_content();self.start_preview();self.check_environment();self.workspace_status.setText(f'工作区 · {ROOT.name}')
 
     def metadata(self):
         collection=self.collection.currentData() or None
@@ -323,7 +394,9 @@ class Studio(QMainWindow):
         if not self.current_file or self.loading or not self.document_dirty:return
         current_state=self.view_state()
         if current_state==self.loaded_view_state:self.document_dirty=False;self.save_state.setText('已保存到本地');return
-        data=self.metadata();atomic_save(self.current_file,serialize_frontmatter(data,self.editor.toPlainText()),ROOT);self.original_metadata=data;self.loaded_view_state=current_state;self.document_dirty=False;self.save_state.setText('● 已保存 · 等待发布');self.statusBar().showMessage('本地已保存，网站预览正在实时更新',1200);self.catalog=content_catalog(ROOT);self.refresh_change_markers()
+        data=self.metadata();body=self.editor.toPlainText()
+        if semantic_value(data)==semantic_value(self.original_metadata) and body==self.original_body:self.loaded_view_state=current_state;self.document_dirty=False;self.save_state.setText('已保存到本地');return
+        atomic_save(self.current_file,serialize_frontmatter(data,body),ROOT);self.original_metadata=data;self.original_body=body;self.loaded_view_state=current_state;self.document_dirty=False;self.save_state.setText('● 已保存 · 等待发布');self.statusBar().showMessage('本地已保存，网站预览正在实时更新',1200);self.catalog=content_catalog(ROOT);self.refresh_change_markers()
 
     def add_category(self):
         value,ok=QInputDialog.getText(self,'新建分类','分类名称')
@@ -336,7 +409,7 @@ class Studio(QMainWindow):
         if not ok or not title.strip():return
         npm=resolve_command('npm')
         if not npm:return QMessageBox.warning(self,'无法创建文章','未找到 npm。')
-        result=subprocess.run([npm,'run','post:new','--','--title',title.strip()],cwd=ROOT,capture_output=True,text=True);self.log.appendPlainText(result.stdout+result.stderr);self.reload_content()
+        result=subprocess.run([npm,'run','post:new','--','--title',title.strip()],cwd=ROOT,capture_output=True,text=True,env=command_environment());self.log.appendPlainText(result.stdout+result.stderr);self.reload_content()
 
     def new_collection(self):
         dialog=CollectionDialog(self)
@@ -412,7 +485,7 @@ class Studio(QMainWindow):
     def run_command(self,command):
         resolved=resolve_command(command[0]) if command[0] in {'npm','node','git','gh'} else command[0]
         if not resolved:self.log.appendPlainText(f'未找到命令：{command[0]}');return False
-        self.log.appendPlainText('$ '+' '.join(command));QApplication.processEvents();result=subprocess.run([resolved,*command[1:]],cwd=ROOT,capture_output=True,text=True);self.log.appendPlainText((result.stdout+result.stderr).rstrip());return result.returncode==0
+        self.log.appendPlainText('$ '+' '.join(command));QApplication.processEvents();result=subprocess.run([resolved,*command[1:]],cwd=ROOT,capture_output=True,text=True,env=command_environment());self.log.appendPlainText((result.stdout+result.stderr).rstrip());return result.returncode==0
 
     def publish(self,all_changes):
         status=environment_status(ROOT)

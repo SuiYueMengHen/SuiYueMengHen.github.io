@@ -8,8 +8,15 @@ import yaml
 IMAGE_EXTENSIONS={'.webp','.avif','.png','.jpg','.jpeg'}
 KNOWN_TOOL_DIRS=(Path('/opt/homebrew/bin'),Path('/usr/local/bin'),Path('/usr/bin'),Path('/bin'))
 
+def command_environment()->dict[str,str]:
+    """Return an app-safe environment for CLI tools launched outside a shell."""
+    env=os.environ.copy();existing=env.get('PATH','').split(os.pathsep)
+    paths=[str(path) for path in KNOWN_TOOL_DIRS]
+    env['PATH']=os.pathsep.join(dict.fromkeys([*paths,*filter(None,existing)]))
+    return env
+
 def resolve_command(name:str)->str|None:
-    found=shutil.which(name)
+    found=shutil.which(name,path=command_environment()['PATH'])
     if found:return found
     for directory in KNOWN_TOOL_DIRS:
         candidate=directory/name
