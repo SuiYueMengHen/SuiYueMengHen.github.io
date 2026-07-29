@@ -4,6 +4,7 @@ import sitemap from '@astrojs/sitemap';
 import { unified } from '@astrojs/markdown-remark';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { rehypeSourcePositions } from './src/lib/rehype-source-positions.mjs';
 
 export default defineConfig({
   site: 'https://suiyuemenghen.github.io',
@@ -13,7 +14,7 @@ export default defineConfig({
     processor: unified({
       gfm: true,
       remarkPlugins: [remarkMath],
-      rehypePlugins: [[rehypeKatex, { output: 'htmlAndMathml' }]],
+      rehypePlugins: [rehypeSourcePositions, [rehypeKatex, { output: 'htmlAndMathml' }]],
     }),
     shikiConfig: { theme: 'github-light-default', wrap: true },
   },
