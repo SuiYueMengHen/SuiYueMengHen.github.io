@@ -1,9 +1,10 @@
 from __future__ import annotations
-import json, os, re, shutil, socket, subprocess, tempfile, time, unicodedata, urllib.request
+import json, os, re, shutil, socket, ssl, subprocess, tempfile, time, unicodedata, urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
 import yaml
+import certifi
 
 IMAGE_EXTENSIONS={'.webp','.avif','.png','.jpg','.jpeg'}
 KNOWN_TOOL_DIRS=(Path('/opt/homebrew/bin'),Path('/usr/local/bin'),Path('/usr/bin'),Path('/bin'))
@@ -103,11 +104,11 @@ def pages_site_url(repo_root:Path)->str:
 
 def wait_for_pages_deployment(site_url:str,commit:str,attempts:int=60,interval:float=3,fetcher=urllib.request.urlopen,sleeper=time.sleep)->dict:
     endpoint=f"{site_url.rstrip('/')}/build-info.json"
-    last_error=''
+    last_error='';context=ssl.create_default_context(cafile=certifi.where())
     for attempt in range(attempts):
         try:
             request=urllib.request.Request(f'{endpoint}?check={time.time_ns()}',headers={'Cache-Control':'no-cache','User-Agent':'Prism-Studio-Deploy-Check'})
-            with fetcher(request,timeout=8) as response:data=json.loads(response.read().decode('utf-8'))
+            with fetcher(request,timeout=8,context=context) as response:data=json.loads(response.read().decode('utf-8'))
             if data.get('commit')==commit:return {'deployed':True,'url':site_url,'build':data}
             last_error=f"线上仍是 {str(data.get('commit','未知'))[:8]}"
         except Exception as error:last_error=str(error)
