@@ -106,6 +106,13 @@ def slugify_collection(value:str)->str:
     normalized=unicodedata.normalize('NFKC',value).strip().lower()
     return re.sub(r'[^\w\u3400-\u9fff.-]+','-',normalized).strip('-') or 'collection'
 
+def preview_route(kind:str,identifier:str='')->str:
+    from urllib.parse import quote
+    if kind=='article':return f'/blog/{quote(identifier,safe="-._~")}/'
+    if kind=='collection':return f'/collections/{quote(identifier,safe="-._~")}/'
+    if kind=='project':return '/projects/'
+    return '/'
+
 def create_collection(repo_root:Path,title:str,description:str,slug:str='',subtitle:str='',volume:str='',status:str='ongoing',featured:bool=False,order:int|None=None)->Path:
     if not title.strip() or not description.strip():raise ValueError('合集标题和简介不能为空。')
     directory=repo_root/'src/content/collections';directory.mkdir(parents=True,exist_ok=True)
@@ -124,7 +131,7 @@ def create_collection(repo_root:Path,title:str,description:str,slug:str='',subti
     atomic_save(target,content,repo_root,backup=False);return target
 
 def content_catalog(repo_root:Path)->dict:
-    collections=[];categories=set();tags=set();articles=[]
+    collections=[];projects=[];categories=set();tags=set();articles=[]
     directory=repo_root/'src/content/collections'
     for file in directory.glob('*.yaml') if directory.exists() else []:
         try:
@@ -137,9 +144,14 @@ def content_catalog(repo_root:Path)->dict:
             if category and not data.get('collection'):categories.add(category)
             tags.update(str(tag).strip() for tag in data.get('tags',[]) if str(tag).strip())
             articles.append({'path':file,'slug':file.parent.name,'title':data.get('title',file.parent.name),'category':category,'tags':data.get('tags',[]),'collection':data.get('collection'),'order':data.get('collectionOrder')})
+    project_dir=repo_root/'src/content/projects'
+    for file in sorted(project_dir.glob('*.yaml')) if project_dir.exists() else []:
+        try:
+            data=yaml.safe_load(file.read_text('utf-8')) or {};projects.append({'id':file.stem,'path':file,'title':data.get('title',file.stem),'repo':data.get('repo','')})
+        except yaml.YAMLError:continue
     categories.update(load_category_registry(repo_root))
     collections.sort(key=lambda item:(item['order'],item['title']))
-    return {'collections':collections,'categories':sorted(categories),'tags':sorted(tags),'articles':articles}
+    return {'collections':collections,'projects':projects,'categories':sorted(categories),'tags':sorted(tags),'articles':articles}
 
 def category_registry_path(repo_root:Path)->Path:return repo_root/'src/data/categories.json'
 
@@ -182,10 +194,10 @@ def reorder_collection(repo_root:Path,collection_id:str,ordered_files:list[Path]
         data['collectionOrder']=number;atomic_save(path,serialize_frontmatter(data,body),repo_root)
 
 def git_content_changes(repo_root:Path,runner:Callable=subprocess.run)->dict:
-    git=resolve_command('git');articles={};collections={};files=[]
-    if not git:return {'articles':articles,'collections':collections,'files':files}
+    git=resolve_command('git');articles={};collections={};projects={};files=[]
+    if not git:return {'articles':articles,'collections':collections,'projects':projects,'files':files}
     result=runner([git,'-c','core.quotepath=false','status','--porcelain=v1','--untracked-files=all'],cwd=repo_root,capture_output=True,text=True)
-    if result.returncode:return {'articles':articles,'collections':collections,'files':files}
+    if result.returncode:return {'articles':articles,'collections':collections,'projects':projects,'files':files}
     for line in result.stdout.splitlines():
         if len(line)<4:continue
         status=line[:2].strip() or 'M';relative=line[3:].split(' -> ')[-1].strip('"');files.append(relative)
@@ -194,6 +206,8 @@ def git_content_changes(repo_root:Path,runner:Callable=subprocess.run)->dict:
             slug=match.group(1);item=articles.setdefault(slug,{'status':set(),'files':[],'added':0,'deleted':0});item['status'].add(status);item['files'].append(relative)
         collection_match=re.match(r'src/content/collections/([^/]+)\.ya?ml$',relative)
         if collection_match:collections[collection_match.group(1)]={'status':status,'file':relative}
+        project_match=re.match(r'src/content/projects/([^/]+)\.ya?ml$',relative)
+        if project_match:projects[project_match.group(1)]={'status':status,'file':relative}
     diff=runner([git,'diff','--numstat','HEAD','--','src/content/blog'],cwd=repo_root,capture_output=True,text=True)
     for line in diff.stdout.splitlines():
         parts=line.split('\t');match=re.match(r'src/content/blog/([^/]+)/',parts[-1]) if len(parts)>=3 else None
@@ -204,7 +218,7 @@ def git_content_changes(repo_root:Path,runner:Callable=subprocess.run)->dict:
             path=repo_root/relative
             if '?' in item['status'] and path.is_file():item['added']+=sum(1 for _ in path.open('r',encoding='utf-8',errors='ignore'))
         item['status']=' / '.join(sorted(item['status']))
-    return {'articles':articles,'collections':collections,'files':files}
+    return {'articles':articles,'collections':collections,'projects':projects,'files':files}
 
 def git_article_changes(repo_root:Path,runner:Callable=subprocess.run)->dict[str,dict]:return git_content_changes(repo_root,runner)['articles']
 
@@ -240,6 +254,10 @@ def publish_commands(paths:list[Path]|None,message:str,all_changes:bool=False)->
 
 def execute_publish(repo_root:Path,paths:list[Path]|None,message:str,all_changes:bool=False,runner:Callable=subprocess.run)->dict:
     scoped=None if paths is None else [path.resolve().relative_to(repo_root.resolve()) if path.is_absolute() else path for path in paths]
+    git=resolve_command('git') or 'git';status_command=[git,'status','--porcelain=v1'] if all_changes else [git,'status','--porcelain=v1','--',*[str(path) for path in (scoped or [])]]
+    status=runner(status_command,cwd=repo_root,capture_output=True,text=True,env=command_environment())
+    if status.returncode:return {'success':False,'stage':'preflight','log':'','error':status.stderr.strip() or '无法读取待上传状态。'}
+    if not status.stdout.strip():return {'success':False,'stage':'preflight','log':'','error':'所选内容没有待上传变更。'}
     logs=[]
     for command in publish_commands(scoped,message,all_changes):
         resolved=resolve_command(command[0]) if command[0] in {'npm','node','git','gh'} else command[0]
@@ -248,7 +266,6 @@ def execute_publish(repo_root:Path,paths:list[Path]|None,message:str,all_changes
         except subprocess.TimeoutExpired:return {'success':False,'stage':'timeout','log':'\n'.join(logs),'error':f'命令超时：{" ".join(command)}'}
         logs.append('$ '+' '.join(command)+'\n'+(result.stdout+result.stderr).rstrip())
         if result.returncode:return {'success':False,'stage':command[1] if len(command)>1 else command[0],'log':'\n'.join(logs),'error':(result.stderr or result.stdout).strip() or '命令执行失败'}
-    git=resolve_command('git') or 'git'
     local=runner([git,'rev-parse','HEAD'],cwd=repo_root,capture_output=True,text=True).stdout.strip()
     upstream=runner([git,'rev-parse','@{u}'],cwd=repo_root,capture_output=True,text=True).stdout.strip()
     if not local or local!=upstream:return {'success':False,'stage':'verify','log':'\n'.join(logs),'error':'推送后本地提交与远端跟踪分支不一致。'}
