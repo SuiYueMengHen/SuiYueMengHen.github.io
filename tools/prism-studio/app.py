@@ -8,13 +8,13 @@ import socket
 import subprocess
 import sys
 import time
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QProcess, QProcessEnvironment, QRect, QTimer, QUrl, Qt, Signal
 from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QImage, QPainter, QPalette, QPen, QPixmap
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkProxy, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QInputDialog, QLabel,
@@ -80,14 +80,6 @@ def semantic_value(value):
     if isinstance(value,list):return [semantic_value(item) for item in value]
     if isinstance(value,dict):return {key:semantic_value(item) for key,item in value.items() if item not in (None,'',[])}
     return value
-
-
-def fetch_preview_html(url:str)->str:
-    request=urllib.request.Request(url,headers={'Cache-Control':'no-cache','User-Agent':'Prism-Studio-Preview'})
-    # The frozen macOS app can inherit a system HTTP proxy even for localhost.
-    # Always bypass proxies for the private Astro preview server.
-    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with opener.open(request,timeout=4) as response:return response.read().decode('utf-8')
 
 
 ROOT = discover_root()
@@ -207,7 +199,7 @@ class ContentTree(QTreeWidget):
 class Studio(QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760);self.theme=read_app_settings().get('theme','light')
-        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_loading=False;self.preview_failures=0;self.preview_navigation=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(250,self.ensure_preview))
+        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_loading=False;self.preview_failures=0;self.preview_navigation=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.preview_reply=None;self.preview_network=QNetworkAccessManager(self);self.preview_network.setProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy));self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(250,self.ensure_preview))
         settings=read_app_settings();last_article=Path(settings.get('last_article','')) if settings.get('workspace')==str(ROOT) and settings.get('last_article') else None
         if last_article and last_article.is_file():self.current_file=last_article
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(180);self.save_timer.timeout.connect(self.save_current)
@@ -320,7 +312,7 @@ class Studio(QMainWindow):
         visible=self.tabs.isVisible();self.tabs.setVisible(not visible);self.focus_button.setText('显示文章信息' if visible else '专注写作');self.editor.setFocus()
 
     def schedule_save(self,*_):
-        if not self.loading and self.current_file:self.preview_patch_generation+=1;self.document_dirty=True;self.preview_scroll_suppressed_until=time.monotonic()+1.2;self.save_state.setText('正在编辑 · 即将实时同步');self.mark_selected_pending('文章内容已修改，正在保存并同步预览…');self.save_timer.start()
+        if not self.loading and self.current_file:self.cancel_preview_request();self.preview_patch_generation+=1;self.document_dirty=True;self.preview_scroll_suppressed_until=time.monotonic()+1.2;self.save_state.setText('正在编辑 · 即将实时同步');self.mark_selected_pending('文章内容已修改，正在保存并同步预览…');self.save_timer.start()
 
     def mark_selected_pending(self,message):
         item=self.tree.currentItem() if hasattr(self,'tree') else None
@@ -484,13 +476,22 @@ class Studio(QMainWindow):
             self.preview_status.setText('预览正在自动恢复 · 当前画面保持不变');self.preview_refresh_pending=False;return
         if generation is None:self.preview_patch_generation+=1;generation=self.preview_patch_generation
         url=self.preview_url().toString()+('?' if '?' not in self.preview_url().toString() else '&')+f'__prism_patch={time.time_ns()}'
-        self.preview_status.setText('正在同步内容…');future=self.executor.submit(fetch_preview_html,url);QTimer.singleShot(30,lambda:self.finish_preview_fetch(future,attempt,generation))
+        self.cancel_preview_request();request=QNetworkRequest(QUrl(url));request.setRawHeader(b'Cache-Control',b'no-cache, no-store');request.setRawHeader(b'Pragma',b'no-cache');request.setRawHeader(b'User-Agent',b'Prism-Studio-Preview');request.setAttribute(QNetworkRequest.Attribute.CacheLoadControlAttribute,QNetworkRequest.CacheLoadControl.AlwaysNetwork)
+        self.preview_status.setText('正在同步内容…');reply=self.preview_network.get(request);self.preview_reply=reply;reply.finished.connect(lambda:self.finish_preview_reply(reply,attempt,generation));QTimer.singleShot(4500,lambda:self.expire_preview_reply(reply,generation))
 
-    def finish_preview_fetch(self,future,attempt,generation):
-        if generation!=self.preview_patch_generation:return
-        if not future.done():return QTimer.singleShot(30,lambda:self.finish_preview_fetch(future,attempt,generation))
-        try:source=future.result()
-        except Exception:
+    def cancel_preview_request(self):
+        reply=self.preview_reply
+        if reply is not None and reply.isRunning():reply.abort()
+        self.preview_reply=None
+
+    def expire_preview_reply(self,reply,generation):
+        if generation==self.preview_patch_generation and reply is self.preview_reply and reply.isRunning():reply.abort()
+
+    def finish_preview_reply(self,reply,attempt,generation):
+        if reply is self.preview_reply:self.preview_reply=None
+        if generation!=self.preview_patch_generation:reply.deleteLater();return
+        error=reply.error();source=bytes(reply.readAll()).decode('utf-8',errors='replace');reply.deleteLater()
+        if error!=QNetworkReply.NetworkError.NoError:
             if attempt<40:return QTimer.singleShot(120,lambda:self.refresh_preview_fragment(attempt+1,generation))
             self.preview_status.setText('预览正在自动恢复 · 当前画面保持不变');self.preview_refresh_pending=False;return
         expected='.prose' if self.selected_kind=='article' else '.projects'
@@ -608,7 +609,7 @@ class Studio(QMainWindow):
 
     def schedule_project_save(self,*_):
         if self.project_loading or self.selected_kind!='project' or not self.selected_path:return
-        self.preview_patch_generation+=1;self.save_state.setText('正在保存项目并同步预览…');self.mark_selected_pending('项目信息已修改，正在保存并同步预览…');self.project_save_timer.start()
+        self.cancel_preview_request();self.preview_patch_generation+=1;self.save_state.setText('正在保存项目并同步预览…');self.mark_selected_pending('项目信息已修改，正在保存并同步预览…');self.project_save_timer.start()
 
     def save_project_current(self):
         if self.project_loading or self.selected_kind!='project' or not self.selected_path or not self.selected_path.exists():return
@@ -874,7 +875,7 @@ class Studio(QMainWindow):
         self.workspace_status.setText('GitHub 已推送 · Pages 尚未确认');self.change_detail.setText(f"线上核验超时：{result.get('error','状态未知')}。提交不会丢失，可稍后再次检查网站。");QMessageBox.warning(self,'网站仍在部署',f"提交 {commit[:8]} 已在 GitHub，但 Pages 在等待时间内没有返回同一构建版本。\n\n这不再显示为“网站上传完成”；请查看 Actions，或稍后重新打开网站。")
 
     def closeEvent(self,event:QCloseEvent):
-        self.save_timer.stop();self.save_current();self.project_save_timer.stop();self.save_project_current();self.preview_watchdog.stop();self.preview_scroll_timer.stop();self.preview_refresh_timer.stop();self.sync_process.terminate();self.sync_process.waitForFinished(600);self.dev.terminate();self.dev.waitForFinished(1300);self.executor.shutdown(wait=False,cancel_futures=True)
+        self.save_timer.stop();self.save_current();self.project_save_timer.stop();self.save_project_current();self.cancel_preview_request();self.preview_watchdog.stop();self.preview_scroll_timer.stop();self.preview_refresh_timer.stop();self.sync_process.terminate();self.sync_process.waitForFinished(600);self.dev.terminate();self.dev.waitForFinished(1300);self.executor.shutdown(wait=False,cancel_futures=True)
         if self.server_pid:
             try:os.kill(self.server_pid,signal.SIGTERM)
             except ProcessLookupError:pass
