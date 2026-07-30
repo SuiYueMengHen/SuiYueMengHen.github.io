@@ -122,7 +122,7 @@ python3 -m pip install -r tools/prism-studio/requirements.txt
 npm run studio
 ```
 
-Prism Studio 提供文章/合集/项目浏览、frontmatter 表单、Markdown/MDX 编辑、原子自动保存与首次修改备份、无闪烁 Astro 局部实时预览、图片管理、仅凭仓库地址导入 GitHub 项目，以及“上传当前内容 / 发布全部变更”两条可视化发布流程。备份位于 `.prism-studio/backups/`，不会提交到 Git。
+Prism Studio 提供文章/合集/项目浏览、文章与项目各自独立的可视化表单、Markdown/MDX 编辑、原子自动保存与首次修改备份、无闪烁 Astro 局部实时预览、图片管理、仅凭仓库地址导入 GitHub 项目，以及“上传当前内容 / 发布全部变更”两条可视化发布流程。发布会先推送 GitHub，再用 `/build-info.json` 核验 GitHub Pages 确实运行同一提交；草稿在上传前会明确提示是否转为公开文章。备份位于 `.prism-studio/backups/`，不会提交到 Git。
 
 macOS `.app` 构建命令：
 

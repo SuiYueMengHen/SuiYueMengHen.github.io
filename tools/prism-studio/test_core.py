@@ -1,6 +1,6 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import atomic_save,article_assets,content_catalog,copy_images,create_category,create_collection,delete_category,execute_publish,git_content_changes,import_project,migrate_category,preview_route,publish_commands,reorder_collection,serialize_frontmatter,split_frontmatter,trash_article
+from core import atomic_save,article_assets,content_catalog,copy_images,create_category,create_collection,delete_category,execute_publish,git_content_changes,import_project,load_project_snapshot,migrate_category,pages_site_url,preview_route,publish_commands,reorder_collection,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
@@ -19,6 +19,19 @@ class CoreTests(unittest.TestCase):
             root=Path(folder);target=root/'src/content/projects/o--r.yaml';target.parent.mkdir(parents=True);target.write_text('old','utf-8')
             def runner(command,**kwargs):return Result(0) if command[1:3]==['auth','status'] else Result(1,err='offline')
             with self.assertRaises(RuntimeError):import_project('o/r',root,runner);self.assertEqual(target.read_text('utf-8'),'old')
+    def test_project_snapshot_edit_roundtrip(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);path=root/'src/content/projects/o--r.yaml';data={'repo':'o/r','title':'Tool','description':'note','topics':['cli','cli',' mac '],'stars':2,'syncedAt':'2026-01-01T00:00:00Z'}
+            save_project_snapshot(path,data,root);loaded=load_project_snapshot(path);self.assertEqual(loaded['topics'],['cli','mac']);self.assertEqual(loaded['stars'],2)
+    def test_pages_deployment_waits_for_matching_commit(self):
+        class Response:
+            def __init__(self,commit):self.commit=commit
+            def __enter__(self):return self
+            def __exit__(self,*_):return False
+            def read(self):return ('{"commit":"'+self.commit+'"}').encode()
+        commits=iter(['old','new']);result=wait_for_pages_deployment('https://example.com','new',attempts=2,interval=0,fetcher=lambda *_args,**_kwargs:Response(next(commits)),sleeper=lambda *_:None);self.assertTrue(result['deployed'])
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);config=root/'src/config/site.ts';config.parent.mkdir(parents=True);config.write_text("export const siteConfig={site:'https://notes.example'}",'utf-8');self.assertEqual(pages_site_url(root),'https://notes.example')
     def test_publish_command_scopes_current_content(self):
         commands=publish_commands([Path('post/index.md'),Path('post/a.png')],'note',False);self.assertEqual(commands[3],['git','add','--','post/index.md','post/a.png']);self.assertEqual(commands[-2],['git','commit','--only','-m','note','--','post/index.md','post/a.png']);self.assertEqual(commands[-1],['git','push'])
     def test_publish_verifies_remote_tracking_commit(self):

@@ -6,7 +6,7 @@ category: 写作
 tags:
 - 待整理
 featured: false
-draft: true
+draft: false
 cover: ./cover.jpg
 coverAlt: 这是一个本地app的demo封面
 ---

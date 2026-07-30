@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, re, shutil, socket, subprocess, tempfile, unicodedata
+import json, os, re, shutil, socket, subprocess, tempfile, time, unicodedata, urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -82,6 +82,38 @@ def import_project(repo_value:str,repo_root:Path,runner:Callable=subprocess.run)
     lines=[f"repo: {yaml_quote(data['full_name'])}",f"title: {yaml_quote(data['name'])}",f"description: {yaml_quote(data.get('description') or '')}",f"language: {yaml_quote(data['language']) if data.get('language') else 'null'}",f"stars: {data.get('stargazers_count',0)}",f"forks: {data.get('forks_count',0)}",f"license: {yaml_quote((data.get('license') or {}).get('spdx_id')) if data.get('license') else 'null'}",f"topics: {yaml_quote(data.get('topics',[]))}",f"homepage: {yaml_quote(data['homepage']) if data.get('homepage') else 'null'}",f"featured: {prior('featured','false')}",f"order: {prior('order','100')}",f"syncedAt: {yaml_quote(datetime.now(timezone.utc).isoformat())}"]
     atomic_save(target,'\n'.join(lines)+'\n',repo_root,backup=True);return target
 
+def load_project_snapshot(path:Path)->dict:
+    data=yaml.safe_load(path.read_text('utf-8')) or {}
+    data['topics']=[str(topic).strip() for topic in data.get('topics',[]) if str(topic).strip()]
+    return data
+
+def save_project_snapshot(path:Path,data:dict,repo_root:Path)->None:
+    clean=dict(data);clean['topics']=list(dict.fromkeys(str(topic).strip() for topic in clean.get('topics',[]) if str(topic).strip()))
+    for key in ('cover','coverAlt'):
+        if not clean.get(key):clean.pop(key,None)
+    content=yaml.safe_dump(clean,allow_unicode=True,sort_keys=False,default_flow_style=False)
+    atomic_save(path,content,repo_root,backup=True)
+
+def pages_site_url(repo_root:Path)->str:
+    config=repo_root/'src/config/site.ts'
+    if config.exists():
+        match=re.search(r"\bsite:\s*['\"](https?://[^'\"]+)",config.read_text('utf-8'))
+        if match:return match.group(1).rstrip('/')
+    return ''
+
+def wait_for_pages_deployment(site_url:str,commit:str,attempts:int=60,interval:float=3,fetcher=urllib.request.urlopen,sleeper=time.sleep)->dict:
+    endpoint=f"{site_url.rstrip('/')}/build-info.json"
+    last_error=''
+    for attempt in range(attempts):
+        try:
+            request=urllib.request.Request(f'{endpoint}?check={time.time_ns()}',headers={'Cache-Control':'no-cache','User-Agent':'Prism-Studio-Deploy-Check'})
+            with fetcher(request,timeout=8) as response:data=json.loads(response.read().decode('utf-8'))
+            if data.get('commit')==commit:return {'deployed':True,'url':site_url,'build':data}
+            last_error=f"线上仍是 {str(data.get('commit','未知'))[:8]}"
+        except Exception as error:last_error=str(error)
+        if attempt+1<attempts:sleeper(interval)
+    return {'deployed':False,'url':site_url,'error':last_error or '部署状态暂不可用'}
+
 def find_port(start:int=4321)->int:
     for port in range(start,start+100):
         with socket.socket() as probe:
@@ -147,7 +179,7 @@ def content_catalog(repo_root:Path)->dict:
     project_dir=repo_root/'src/content/projects'
     for file in sorted(project_dir.glob('*.yaml')) if project_dir.exists() else []:
         try:
-            data=yaml.safe_load(file.read_text('utf-8')) or {};projects.append({'id':file.stem,'path':file,'title':data.get('title',file.stem),'repo':data.get('repo','')})
+            data=yaml.safe_load(file.read_text('utf-8')) or {};projects.append({'id':file.stem,'path':file,'title':data.get('title',file.stem),'repo':data.get('repo',''),'topics':data.get('topics',[]),'data':data})
         except yaml.YAMLError:continue
     categories.update(load_category_registry(repo_root))
     collections.sort(key=lambda item:(item['order'],item['title']))
