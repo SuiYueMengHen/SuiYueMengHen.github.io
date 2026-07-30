@@ -1,0 +1,13 @@
+repo: SuiYueMengHen/macterm
+title: macterm
+description: A Rust terminal-related project for macOS workflows.
+language: Rust
+stars: 1
+forks: 0
+license: MIT
+topics:
+- rust
+homepage: https://github.com/SuiYueMengHen/macterm
+featured: false
+order: 100
+syncedAt: '2026-07-30T07:13:02.935908+00:00'
