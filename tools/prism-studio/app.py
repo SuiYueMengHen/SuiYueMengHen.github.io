@@ -207,7 +207,7 @@ class ContentTree(QTreeWidget):
 class Studio(QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760);self.theme=read_app_settings().get('theme','light')
-        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_failures=0;self.preview_navigation=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(250,self.ensure_preview))
+        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_loading=False;self.preview_failures=0;self.preview_navigation=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(250,self.ensure_preview))
         settings=read_app_settings();last_article=Path(settings.get('last_article','')) if settings.get('workspace')==str(ROOT) and settings.get('last_article') else None
         if last_article and last_article.is_file():self.current_file=last_article
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(180);self.save_timer.timeout.connect(self.save_current)
@@ -434,41 +434,43 @@ class Studio(QMainWindow):
     def ensure_preview(self):
         if self.port_open():
             self.preview_failures=0
-            if not self.preview_ready:self.navigate_preview()
+            if not self.preview_ready and not self.preview_loading:self.navigate_preview()
             return
-        self.preview_ready=False;self.preview_failures+=1;self.preview_status.setText('正在自动恢复…')
+        self.preview_ready=False;self.preview_loading=False;self.preview_failures+=1;self.preview_status.setText('正在自动恢复…')
         if self.preview_failures>=2 and time.monotonic()>self.preview_starting_until:self.preview_failures=0;self.start_preview()
 
     def preview_url(self):return QUrl(f'http://127.0.0.1:{self.port}{self.preview_path}')
     def navigate_preview(self,path=None):
         if path is not None:self.preview_path=path
-        self.preview_navigation+=1;self.preview_patch_generation+=1;token=self.preview_navigation;self.preview_ready=False;self.preview_status.setText('正在打开预览…');self.try_preview_navigation(token,0)
+        self.preview_navigation+=1;self.preview_patch_generation+=1;token=self.preview_navigation;self.preview_ready=False;self.preview_loading=True;self.preview_status.setText('正在打开预览…');self.try_preview_navigation(token,0)
 
     def try_preview_navigation(self,token,attempt):
         if token!=self.preview_navigation:return
         if not self.port_open():
             if time.monotonic()>self.preview_starting_until and self.dev.state()==QProcess.NotRunning:self.start_preview()
             if attempt<80:return QTimer.singleShot(180,lambda:self.try_preview_navigation(token,attempt+1))
-            self.preview_status.setText('预览服务连接失败 · 正在重试');return
+            self.preview_loading=False;self.preview_status.setText('预览服务连接失败 · 正在重试');return
         target=self.preview_url()
         if self.preview.url()==target and self.preview_ready:self.refresh_preview_fragment();return
+        self.preview_loading=True
         if self.preview.url()==target:self.preview.reload()
         else:self.preview.setUrl(target)
-        QTimer.singleShot(320,lambda:self.preview.page().runJavaScript("Boolean(document.querySelector('#main-content'))",self.confirm_preview_dom))
         QTimer.singleShot(1800,lambda:self.verify_preview_navigation(token,attempt))
 
     def verify_preview_navigation(self,token,attempt):
         if token!=self.preview_navigation or self.preview_ready:return
+        self.preview_loading=False
         if attempt<4:self.preview_status.setText('页面载入较慢 · 自动重试');self.try_preview_navigation(token,attempt+1)
         else:self.preview_status.setText('页面载入失败 · 点击文章重试')
 
     def preview_loaded(self,success):
         loaded=self.preview.url();on_local_preview=loaded.host()=='127.0.0.1' and loaded.port()==self.port
-        if on_local_preview:self.preview.page().runJavaScript("Boolean(document.querySelector('#main-content'))",self.confirm_preview_dom)
+        self.preview_loading=False
+        if success and on_local_preview:self.confirm_preview_dom(True)
         elif self.port_open():QTimer.singleShot(250,lambda:self.try_preview_navigation(self.preview_navigation,0))
 
     def confirm_preview_dom(self,ready):
-        if not ready:return QTimer.singleShot(180,lambda:self.preview.page().runJavaScript("Boolean(document.querySelector('#main-content'))",self.confirm_preview_dom))
+        if not ready:return
         self.preview_ready=True;self.preview_failures=0;self.preview_status.setText('● 稳定实时预览');self.preview.page().runJavaScript("document.querySelector('.giscus')?.replaceChildren(Object.assign(document.createElement('p'),{textContent:'评论组件将在正式网站中加载；Studio 预览已停用外部 iframe 以保持稳定。'}))");self.sync_preview_theme();QTimer.singleShot(70,self.complete_preview_refresh)
 
     def complete_preview_refresh(self):
