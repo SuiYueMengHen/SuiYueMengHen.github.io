@@ -1,11 +1,14 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import atomic_save,article_assets,content_catalog,copy_images,create_category,create_collection,delete_category,execute_publish,git_content_changes,import_project,load_project_snapshot,migrate_category,pages_site_url,preview_route,publish_commands,reorder_collection,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
+from core import article_preview_version,atomic_save,article_assets,content_catalog,copy_images,create_category,create_collection,delete_category,execute_publish,git_content_changes,import_project,load_project_snapshot,migrate_category,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
 
 class CoreTests(unittest.TestCase):
+    def test_preview_fingerprints_match_web_runtime(self):
+        article={'title':'棱镜','description':'清晰','category':'写作','tags':['A','中文'],'collection':None,'collectionOrder':None,'featured':True,'draft':False,'canonical':None};project={'repo':'o/r','title':'工具','description':'说明','topics':['cli','mac'],'homepage':None,'cover':None,'coverAlt':None,'featured':False,'order':2}
+        self.assertEqual(article_preview_version(article,'正文\r\n'),'246cddcc998b9d18ebd1257199f576779ddd11f39a957af0c3578b7f57c4a72e');self.assertEqual(project_preview_version(project),'6d6f99f07afa98739f4307b830b10663d9c5d75eb99aa562913b08cc4d736482')
     def test_frontmatter_roundtrip(self):
         data={'title':'棱镜','tags':['写作','工具'],'draft':True};source=serialize_frontmatter(data,'正文\n');parsed,body=split_frontmatter(source);self.assertEqual(parsed['tags'],data['tags']);self.assertEqual(body,'正文\n')
     def test_atomic_save_creates_first_backup(self):

@@ -1,11 +1,12 @@
 ---
 import type { CollectionEntry } from 'astro:content';
+import { projectPreviewVersion } from '../lib/preview-version';
 interface Props { project: CollectionEntry<'projects'>; compact?: boolean }
 const { project, compact = false } = Astro.props;
 const d = project.data;
 const repoUrl = `https://github.com/${d.repo}`;
 ---
-<article class:list={['project-card', { compact }]}>
+<article class:list={['project-card', { compact }]} data-project-repo={d.repo} data-content-version={projectPreviewVersion(d)}>
   {d.cover && <img src={d.cover} alt={d.coverAlt || `${d.title} 项目封面`} loading="lazy" />}
   <div class="project-body">
     <p class="repo-path"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5l2 2h7v14H5z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>{d.repo}</p>

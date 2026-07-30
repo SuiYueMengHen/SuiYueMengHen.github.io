@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, re, shutil, socket, ssl, subprocess, tempfile, time, unicodedata, urllib.request
+import hashlib, json, os, re, shutil, socket, ssl, subprocess, tempfile, time, unicodedata, urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -36,6 +36,16 @@ def serialize_frontmatter(data:dict,body:str)->str:
     clean={key:value for key,value in data.items() if value not in (None,'',[])}
     header=yaml.safe_dump(clean,allow_unicode=True,sort_keys=False,default_flow_style=False).strip()
     return f'---\n{header}\n---\n\n{body.lstrip()}'
+
+def _preview_text(value)->str:return '' if value is None else str(value)
+def _preview_flag(value)->str:return 'true' if value else 'false'
+def _preview_digest(parts:list[str])->str:return hashlib.sha256('\x1f'.join(parts).encode('utf-8')).hexdigest()
+
+def article_preview_version(data:dict,body:str='')->str:
+    return _preview_digest([_preview_text(data.get('title')),_preview_text(data.get('description')),_preview_text(data.get('category')),'\x1e'.join(map(_preview_text,data.get('tags',[]))),_preview_text(data.get('collection')),_preview_text(data.get('collectionOrder')),_preview_flag(data.get('featured')),_preview_flag(data.get('draft')),_preview_text(data.get('canonical')),body.replace('\r\n','\n').strip()])
+
+def project_preview_version(data:dict)->str:
+    return _preview_digest([_preview_text(data.get('repo')),_preview_text(data.get('title')),_preview_text(data.get('description')),'\x1e'.join(map(_preview_text,data.get('topics',[]))),_preview_text(data.get('homepage')),_preview_text(data.get('cover')),_preview_text(data.get('coverAlt')),_preview_flag(data.get('featured')),_preview_text(data.get('order'))])
 
 def atomic_save(path:Path,content:str,repo_root:Path,backup:bool=True)->None:
     path.parent.mkdir(parents=True,exist_ok=True)
