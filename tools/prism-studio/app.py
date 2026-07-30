@@ -26,9 +26,9 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from core import (
     article_assets, atomic_save, command_environment, content_catalog, copy_images, create_collection,
-    environment_status, find_port, git_article_changes, import_project,
-    publish_commands, reorder_collection, resolve_command, serialize_frontmatter,
-    split_frontmatter, trash_article,
+    create_category, delete_category, environment_status, execute_publish, find_port,
+    git_content_changes, import_project, migrate_category, reorder_collection, resolve_command,
+    serialize_frontmatter, split_frontmatter, trash_article,
 )
 
 
@@ -127,6 +127,20 @@ class CollectionDialog(QDialog):
         super().accept()
 
 
+class CategoryDialog(QDialog):
+    def __init__(self,categories,parent=None):
+        super().__init__(parent);self.setWindowTitle('管理分类');self.setMinimumSize(440,360);self.action=None
+        layout=QVBoxLayout(self);hint=QLabel('合集文章不会出现在分类中。重命名或删除会批量迁移文章。');hint.setWordWrap(True);hint.setObjectName('muted');layout.addWidget(hint)
+        self.list=QListWidget();self.list.addItems(categories);layout.addWidget(self.list,1)
+        buttons=QHBoxLayout();rename=QPushButton('重命名');remove=QPushButton('删除并归入未分类');remove.setProperty('danger',True);close=QPushButton('完成')
+        rename.clicked.connect(lambda:self.finish('rename'));remove.clicked.connect(lambda:self.finish('delete'));close.clicked.connect(self.reject)
+        buttons.addWidget(rename);buttons.addWidget(remove);buttons.addStretch();buttons.addWidget(close);layout.addLayout(buttons)
+
+    def finish(self,action):
+        if not self.list.currentItem():return QMessageBox.information(self,'请选择分类','请先在列表中选择一个分类。')
+        self.action=(action,self.list.currentItem().text());self.accept()
+
+
 class CropCanvas(QLabel):
     def __init__(self, pixmap: QPixmap):
         super().__init__();self.source=pixmap;self.zoom=100;self.x_offset=0;self.y_offset=0;self.ratio=16/9;self.setMinimumSize(560,315);self.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
@@ -173,12 +187,12 @@ class ContentTree(QTreeWidget):
 class Studio(QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760);self.theme=read_app_settings().get('theme','light')
-        self.current_file:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.catalog={};self.changes={};self.preview_path='/';self.preview_ready=False;self.preview_failures=0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.executor=ThreadPoolExecutor(max_workers=2,thread_name_prefix='prism-studio');self.environment_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(700,self.ensure_preview))
+        self.current_file:Path|None=None;self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.catalog={};self.changes={};self.collection_changes={};self.content_change_files=[];self.preview_path='/';self.preview_ready=False;self.preview_failures=0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.executor=ThreadPoolExecutor(max_workers=3,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.sync_future=None;self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(700,self.ensure_preview))
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(320);self.save_timer.timeout.connect(self.save_current)
-        self.marker_timer=QTimer(self);self.marker_timer.setInterval(2200);self.marker_timer.timeout.connect(self.refresh_change_markers)
+        self.marker_timer=QTimer(self);self.marker_timer.setInterval(3500);self.marker_timer.timeout.connect(self.refresh_change_markers)
         self.preview_watchdog=QTimer(self);self.preview_watchdog.setInterval(1200);self.preview_watchdog.timeout.connect(self.ensure_preview)
         self.editor_sync_timer=QTimer(self);self.editor_sync_timer.setSingleShot(True);self.editor_sync_timer.setInterval(70);self.editor_sync_timer.timeout.connect(self.sync_preview_to_editor)
-        self.preview_scroll_timer=QTimer(self);self.preview_scroll_timer.setInterval(160);self.preview_scroll_timer.timeout.connect(self.poll_preview_scroll)
+        self.preview_scroll_timer=QTimer(self);self.preview_scroll_timer.setInterval(220);self.preview_scroll_timer.timeout.connect(self.poll_preview_scroll)
         self.preview_refresh_timer=QTimer(self);self.preview_refresh_timer.setSingleShot(True);self.preview_refresh_timer.setInterval(800);self.preview_refresh_timer.timeout.connect(self.complete_preview_refresh)
         self.sync_process=QProcess(self);configure_process(self.sync_process);self.sync_process.setProcessChannelMode(QProcess.MergedChannels);self.sync_process.finished.connect(self.auto_sync_finished)
         self.build_ui();self.reload_content();self.start_preview();self.check_environment();self.marker_timer.start();self.preview_watchdog.start();self.preview_scroll_timer.start();QTimer.singleShot(2500,self.auto_sync)
@@ -204,7 +218,7 @@ class Studio(QMainWindow):
         self.tabs=QTabWidget();self.tabs.setMinimumHeight(235);self.form_scroll=QScrollArea();self.form_scroll.setObjectName('formScroll');self.form_scroll.viewport().setObjectName('formViewport');self.form_scroll.setWidgetResizable(True);self.form_scroll.setFrameShape(QFrame.NoFrame);self.form_surface=QWidget();self.form_surface.setObjectName('formSurface');layout=QFormLayout(self.form_surface);layout.setContentsMargins(12,14,12,12);layout.setSpacing(11);layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.title_field=QLineEdit();layout.addRow('标题',self.title_field)
         self.description=QTextEdit();self.description.setMinimumHeight(92);self.description.setPlaceholderText('用两到三句话概括文章内容，这段文字会用于列表与搜索摘要。');layout.addRow('摘要',self.description)
-        category_row=QHBoxLayout();self.category=QComboBox();self.category.setEditable(True);self.category.setInsertPolicy(QComboBox.NoInsert);add_category=QPushButton('新建');add_category.setProperty('compact',True);add_category.clicked.connect(self.add_category);category_row.addWidget(self.category,1);category_row.addWidget(add_category);layout.addRow('分类',category_row)
+        self.category_box=QWidget();category_box_layout=QVBoxLayout(self.category_box);category_box_layout.setContentsMargins(0,0,0,0);category_box_layout.setSpacing(5);category_row=QHBoxLayout();category_row.setContentsMargins(0,0,0,0);self.category=QComboBox();self.category.setEditable(False);add_category=QPushButton('新建');add_category.setProperty('compact',True);add_category.clicked.connect(self.add_category);manage_category=QPushButton('管理');manage_category.setProperty('compact',True);manage_category.clicked.connect(self.manage_categories);category_row.addWidget(self.category,1);category_row.addWidget(add_category);category_row.addWidget(manage_category);category_box_layout.addLayout(category_row);self.category_hint=QLabel('从已有分类中选择，或新建、重命名和删除分类。');self.category_hint.setObjectName('muted');self.category_hint.setWordWrap(True);category_box_layout.addWidget(self.category_hint);layout.addRow('分类',self.category_box)
         collection_row=QHBoxLayout();self.collection=QComboBox();add_collection=QPushButton('新建');add_collection.setProperty('compact',True);add_collection.clicked.connect(self.new_collection);collection_row.addWidget(self.collection,1);collection_row.addWidget(add_collection);layout.addRow('合集',collection_row)
         self.order=QSpinBox();self.order.setRange(0,9999);self.order.setSpecialValueText('散篇 / 自动');layout.addRow('章节顺序',self.order)
         self.tags=TagPicker();layout.addRow('标签池',self.tags)
@@ -225,6 +239,7 @@ class Studio(QMainWindow):
         publish=QHBoxLayout();self.publish_current=QPushButton('发布当前文章');self.publish_current.clicked.connect(lambda:self.publish(False));self.publish_all=QPushButton('发布全部变更');self.publish_all.setProperty('primary',True);self.publish_all.clicked.connect(lambda:self.publish(True));publish.addWidget(self.publish_current);publish.addWidget(self.publish_all);rv.addLayout(publish);split.addWidget(right);split.setSizes([300,620,650])
 
         for signal_object in [self.title_field.textChanged,self.description.textChanged,self.category.currentTextChanged,self.collection.currentIndexChanged,self.order.valueChanged,self.tags.changed,self.cover.textChanged,self.cover_alt.textChanged,self.date.dateChanged,self.canonical.textChanged,self.draft.toggled,self.featured.toggled,self.editor.textChanged]:signal_object.connect(self.schedule_save)
+        self.collection.currentIndexChanged.connect(self.update_category_availability)
         self.apply_theme()
 
     def theme_colors(self):
@@ -267,12 +282,12 @@ class Studio(QMainWindow):
         if not self.loading and self.current_file:self.document_dirty=True;self.preview_scroll_suppressed_until=time.monotonic()+1.2;self.save_state.setText('正在编辑 · 尚未保存');self.save_timer.start()
 
     def reload_content(self):
-        selected=str(self.current_file) if self.current_file else None;self.catalog=content_catalog(ROOT);self.changes=git_article_changes(ROOT);self.loading=True
+        selected=str(self.current_file) if self.current_file else None;self.catalog=content_catalog(ROOT);self.loading=True
         current_collection=self.collection.currentData() if hasattr(self,'collection') else ''
         self.collection.clear();self.collection.addItem('不加入合集','')
         for item in self.catalog['collections']:self.collection.addItem(item['title'],item['id'])
         index=self.collection.findData(current_collection);self.collection.setCurrentIndex(max(0,index))
-        current_category=self.category.currentText() if hasattr(self,'category') else '';self.category.clear();self.category.addItems(self.catalog['categories']);self.category.setEditText(current_category);self.loading=False;self.load_tree(selected)
+        current_category=self.category.currentText() if hasattr(self,'category') else '';self.category.clear();self.category.addItems(self.catalog['categories']);index=self.category.findText(current_category);self.category.setCurrentIndex(max(0,index));self.loading=False;self.update_category_availability();self.load_tree(selected);self.refresh_change_markers()
 
     def article_item(self,article):
         changed=self.changes.get(article['slug']);text=('●  ' if changed else '')+article['title'];item=QTreeWidgetItem([text]);item.setData(0,ROLE_KIND,'article');item.setData(0,ROLE_PATH,str(article['path']));item.setData(0,ROLE_COLLECTION,article.get('collection') or '')
@@ -290,7 +305,8 @@ class Studio(QMainWindow):
         collection_root=QTreeWidgetItem(['合集']);collection_root.setData(0,ROLE_KIND,'root');collection_root.setFlags(collection_root.flags()&~Qt.ItemIsDragEnabled);self.tree.addTopLevelItem(collection_root);collection_root.setExpanded(True)
         target_item=None
         for collection in self.catalog['collections']:
-            parent=QTreeWidgetItem([f"{collection['title']}  ·  {len(by_collection[collection['id']])} 篇"]);parent.setData(0,ROLE_KIND,'collection');parent.setData(0,ROLE_COLLECTION,collection['id']);parent.setFlags((parent.flags()|Qt.ItemIsDropEnabled)&~Qt.ItemIsDragEnabled);collection_root.addChild(parent);parent.setExpanded(True)
+            collection_changed=self.collection_changes.get(collection['id']);parent=QTreeWidgetItem([('●  ' if collection_changed else '')+f"{collection['title']}  ·  {len(by_collection[collection['id']])} 篇"]);parent.setData(0,ROLE_KIND,'collection');parent.setData(0,ROLE_COLLECTION,collection['id']);parent.setFlags((parent.flags()|Qt.ItemIsDropEnabled)&~Qt.ItemIsDragEnabled);collection_root.addChild(parent);parent.setExpanded(True)
+            if collection_changed:parent.setForeground(0,QColor(self.theme_colors()['danger']));parent.setToolTip(0,f"未发布合集：{collection_changed['status']}\n{collection_changed['file']}")
             for article in sorted(by_collection[collection['id']],key=lambda x:(x.get('order') or 9999,x['title'])):
                 item=self.article_item(article);parent.addChild(item)
                 if selected_path==item.data(0,ROLE_PATH):target_item=item
@@ -305,11 +321,20 @@ class Studio(QMainWindow):
         projects=QTreeWidgetItem(['项目快照']);projects.setData(0,ROLE_KIND,'root');self.tree.addTopLevelItem(projects)
         for file in sorted((ROOT/'src/content/projects').glob('*.yaml')):item=QTreeWidgetItem([file.stem]);item.setData(0,ROLE_KIND,'project');item.setData(0,ROLE_PATH,str(file));projects.addChild(item)
         if target_item:self.tree.setCurrentItem(target_item)
-        self.tree.blockSignals(False);self.pending_badge.setText(f'{len(self.changes)} 篇未发布');self.pending_badge.setStyleSheet('color:#a6382b' if self.changes else '')
+        self.tree.blockSignals(False);pending=len(self.changes)+len(self.collection_changes);self.pending_badge.setText(f'{pending} 项未发布');self.pending_badge.setStyleSheet('color:#a6382b' if pending else '')
 
     def refresh_change_markers(self):
-        latest=git_article_changes(ROOT)
-        if latest!=self.changes:self.changes=latest;self.load_tree(str(self.current_file) if self.current_file else None)
+        if self.change_future and not self.change_future.done():return
+        root=ROOT;self.change_future=self.executor.submit(git_content_changes,root);QTimer.singleShot(60,lambda:self.finish_change_markers(root))
+
+    def finish_change_markers(self,root):
+        if not self.change_future or not self.change_future.done():return QTimer.singleShot(60,lambda:self.finish_change_markers(root))
+        if root!=ROOT:return
+        try:latest=self.change_future.result()
+        except Exception as error:self.log.appendPlainText(f'读取 Git 变更失败：{error}');return
+        articles=latest['articles'];collections=latest['collections'];self.content_change_files=latest['files']
+        if articles!=self.changes or collections!=self.collection_changes:
+            self.changes=articles;self.collection_changes=collections;self.load_tree(str(self.current_file) if self.current_file else None)
 
     def check_environment(self):
         if self.environment_future and not self.environment_future.done():return
@@ -444,7 +469,9 @@ class Studio(QMainWindow):
         if self.current_file and self.current_file!=path:self.save_timer.stop();self.save_current()
         try:data,body=split_frontmatter(path.read_text('utf-8'))
         except OSError as error:QMessageBox.warning(self,'无法打开文章',f'{error}\n\n请确认工作区与文件权限。');return
-        self.current_file=path;self.original_metadata=dict(data);self.original_body=body;self.loading=True;self.title_field.setText(str(data.get('title','')));self.description.setPlainText(str(data.get('description','')));self.category.setEditText(str(data.get('category','')));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.editor.setPlainText(body);self.loading=False
+        self.current_file=path;self.original_metadata=dict(data);self.original_body=body;self.loading=True;self.title_field.setText(str(data.get('title','')));self.description.setPlainText(str(data.get('description','')));category=str(data.get('category','未分类'));category_index=self.category.findText(category)
+        if category_index<0:self.category.addItem(category);category_index=self.category.findText(category)
+        self.category.setCurrentIndex(max(0,category_index));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.editor.setPlainText(body);self.loading=False;self.update_category_availability()
         self.document_dirty=False;self.loaded_view_state=self.view_state();self.current_title.setText(data.get('title',path.parent.name));self.save_state.setText('已保存到本地');self.preview_path=f'/blog/{path.parent.name}/';self.publish_current.setEnabled(True);changed=self.changes.get(path.parent.name);self.change_detail.setText(f"● 尚未发布 · {changed['status']} · 新增 {changed['added']} 行 / 删除 {changed['deleted']} 行\n"+'\n'.join(changed['files']) if changed else '✓ 当前文章与 Git 仓库一致，没有未发布修改。')
         if self.preview_ready:self.preview.setUrl(self.preview_url())
 
@@ -471,20 +498,53 @@ class Studio(QMainWindow):
         if current_state==self.loaded_view_state:self.document_dirty=False;self.save_state.setText('已保存到本地');return
         data=self.metadata();body=self.editor.toPlainText()
         if semantic_value(data)==semantic_value(self.original_metadata) and body==self.original_body:self.loaded_view_state=current_state;self.document_dirty=False;self.save_state.setText('已保存到本地');return
-        atomic_save(self.current_file,serialize_frontmatter(data,body),ROOT);self.original_metadata=data;self.original_body=body;self.loaded_view_state=current_state;self.document_dirty=False;self.preview_refresh_pending=True;self.preview_scroll_suppressed_until=time.monotonic()+1.2;self.preview_refresh_timer.start();self.save_state.setText('● 已保存 · 等待发布');self.statusBar().showMessage('本地已保存，网站预览正在实时更新',1200);self.catalog=content_catalog(ROOT);self.refresh_change_markers()
+        atomic_save(self.current_file,serialize_frontmatter(data,body),ROOT);self.original_metadata=data;self.original_body=body;self.loaded_view_state=current_state;self.document_dirty=False;self.preview_refresh_pending=True;self.preview_scroll_suppressed_until=time.monotonic()+1.2;self.preview_refresh_timer.start();self.save_state.setText('● 已保存 · 等待发布');self.statusBar().showMessage('本地已保存，网站预览正在实时更新',1200);self.refresh_change_markers()
+
+    def update_category_availability(self,*_):
+        in_collection=bool(self.collection.currentData())
+        self.category_box.setEnabled(not in_collection);self.order.setEnabled(in_collection)
+        self.category_hint.setText('合集文章只按章节归入合集，不参与任何分类。' if in_collection else '从已有分类中选择，或新建、重命名和删除分类。')
 
     def add_category(self):
+        if self.collection.currentData():return QMessageBox.information(self,'合集文章无分类','先将文章设为“不加入合集”，再选择分类。')
         value,ok=QInputDialog.getText(self,'新建分类','分类名称')
         if ok and value.strip():
-            if self.category.findText(value.strip())<0:self.category.addItem(value.strip())
-            self.category.setEditText(value.strip())
+            try:create_category(ROOT,value)
+            except ValueError as error:return QMessageBox.warning(self,'无法创建分类',str(error))
+            self.catalog=content_catalog(ROOT);self.category.clear();self.category.addItems(self.catalog['categories']);self.category.setCurrentIndex(self.category.findText(value.strip()));self.schedule_save();self.refresh_change_markers()
+
+    def manage_categories(self):
+        dialog=CategoryDialog(self.catalog.get('categories',[]),self)
+        if dialog.exec()!=QDialog.Accepted or not dialog.action:return
+        action,name=dialog.action
+        if action=='rename':
+            target,ok=QInputDialog.getText(self,'重命名分类',f'将“{name}”重命名为：',text=name)
+            if not ok or not target.strip() or target.strip()==name:return
+            task=lambda:migrate_category(ROOT,name,target.strip());success=f'分类“{name}”已重命名为“{target.strip()}”，相关文章已迁移。'
+        else:
+            if name=='未分类':return QMessageBox.information(self,'不能删除','“未分类”是系统保留分类。')
+            if QMessageBox.question(self,'删除分类',f'确定删除“{name}”吗？\n\n所有使用该分类的文章会自动移入“未分类”；合集文章仍只属于合集。')!=QMessageBox.Yes:return
+            task=lambda:delete_category(ROOT,name);success=f'分类“{name}”已删除，相关文章已移入“未分类”。'
+        self.workspace_status.setText('正在更新文章分类…');future=self.executor.submit(task);QTimer.singleShot(60,lambda:self.finish_category_task(future,success))
+
+    def finish_category_task(self,future,success):
+        if not future.done():return QTimer.singleShot(60,lambda:self.finish_category_task(future,success))
+        try:changed=future.result()
+        except Exception as error:self.workspace_status.setText('分类更新失败');return QMessageBox.warning(self,'分类更新失败',str(error))
+        self.reload_content();self.workspace_status.setText('分类已更新 · 等待发布');self.log.appendPlainText(f'{success}\n共更新 {len(changed)} 篇文章。');QMessageBox.information(self,'分类已更新',success)
 
     def new_article(self):
         title,ok=QInputDialog.getText(self,'新建文章','文章标题')
         if not ok or not title.strip():return
         npm=resolve_command('npm')
         if not npm:return QMessageBox.warning(self,'无法创建文章','未找到 npm。')
-        result=subprocess.run([npm,'run','post:new','--','--title',title.strip()],cwd=ROOT,capture_output=True,text=True,env=command_environment());self.log.appendPlainText(result.stdout+result.stderr);self.reload_content()
+        self.workspace_status.setText('正在创建文章…');future=self.executor.submit(subprocess.run,[npm,'run','post:new','--','--title',title.strip()],cwd=ROOT,capture_output=True,text=True,env=command_environment());QTimer.singleShot(60,lambda:self.finish_new_article(future))
+
+    def finish_new_article(self,future):
+        if not future.done():return QTimer.singleShot(60,lambda:self.finish_new_article(future))
+        result=future.result();self.log.appendPlainText(result.stdout+result.stderr)
+        if result.returncode:self.workspace_status.setText('文章创建失败');return QMessageBox.warning(self,'创建失败','请查看运行日志。')
+        self.workspace_status.setText('新文章已创建 · 等待发布');self.reload_content()
 
     def new_collection(self):
         dialog=CollectionDialog(self)
@@ -537,17 +597,22 @@ class Studio(QMainWindow):
     def sync_repository(self):
         git=resolve_command('git')
         if not git:return QMessageBox.warning(self,'无法同步','未找到 git。')
-        dirty=subprocess.run([git,'status','--porcelain'],cwd=ROOT,capture_output=True,text=True).stdout.strip()
-        if dirty and QMessageBox.question(self,'同步前确认','本地有尚未发布的修改。Git 会保留这些修改，但远端若改到同一位置可能无法快进。仍要继续同步吗？')!=QMessageBox.Yes:return
-        QApplication.setOverrideCursor(Qt.WaitCursor);result=subprocess.run([git,'pull','--ff-only'],cwd=ROOT,capture_output=True,text=True);QApplication.restoreOverrideCursor();self.log.appendPlainText('$ git pull --ff-only\n'+result.stdout+result.stderr)
-        if result.returncode:return QMessageBox.warning(self,'同步未完成','无法快进同步，请查看运行日志；本地内容没有被覆盖。')
-        self.reload_content();QMessageBox.information(self,'同步完成','本地文章、合集和项目快照已与 GitHub 仓库同步。')
+        if self.sync_future and not self.sync_future.done():return
+        if self.content_change_files and QMessageBox.question(self,'同步前确认','本地有尚未发布的修改。Git 会保留这些修改，但远端若改到同一位置可能无法快进。仍要继续同步吗？')!=QMessageBox.Yes:return
+        self.workspace_status.setText('正在后台同步 GitHub…');self.sync_future=self.executor.submit(subprocess.run,[git,'pull','--ff-only'],cwd=ROOT,capture_output=True,text=True,env=command_environment(),timeout=120);QTimer.singleShot(80,self.finish_manual_sync)
+
+    def finish_manual_sync(self):
+        if not self.sync_future or not self.sync_future.done():return QTimer.singleShot(80,self.finish_manual_sync)
+        try:result=self.sync_future.result()
+        except Exception as error:self.workspace_status.setText('同步失败');return QMessageBox.warning(self,'同步未完成',str(error))
+        self.log.appendPlainText('$ git pull --ff-only\n'+result.stdout+result.stderr)
+        if result.returncode:self.workspace_status.setText('同步未完成');return QMessageBox.warning(self,'同步未完成','无法快进同步，请查看运行日志；本地内容没有被覆盖。')
+        self.workspace_status.setText('已与 GitHub 同步');self.reload_content();QMessageBox.information(self,'同步完成','本地文章、合集和项目快照已与 GitHub 仓库同步。')
 
     def auto_sync(self):
         git=resolve_command('git')
         if not git or self.sync_process.state()!=QProcess.NotRunning:return QTimer.singleShot(60000,self.auto_sync)
-        dirty=subprocess.run([git,'status','--porcelain'],cwd=ROOT,capture_output=True,text=True).stdout.strip()
-        if dirty:return QTimer.singleShot(60000,self.auto_sync)
+        if self.content_change_files:return QTimer.singleShot(60000,self.auto_sync)
         self.workspace_status.setText('正在检查远端更新…');self.sync_process.setWorkingDirectory(str(ROOT));self.sync_process.start(git,['pull','--ff-only'])
 
     def auto_sync_finished(self,code,*_):
@@ -557,23 +622,28 @@ class Studio(QMainWindow):
         else:self.workspace_status.setText('自动同步暂不可用，本地编辑不受影响')
         QTimer.singleShot(60000,self.auto_sync)
 
-    def run_command(self,command):
-        resolved=resolve_command(command[0]) if command[0] in {'npm','node','git','gh'} else command[0]
-        if not resolved:self.log.appendPlainText(f'未找到命令：{command[0]}');return False
-        self.log.appendPlainText('$ '+' '.join(command));QApplication.processEvents();result=subprocess.run([resolved,*command[1:]],cwd=ROOT,capture_output=True,text=True,env=command_environment());self.log.appendPlainText((result.stdout+result.stderr).rstrip());return result.returncode==0
-
     def publish(self,all_changes):
-        status=environment_status(ROOT)
-        if not all(status.get(key,False) for key in ('node','npm','git','repository')):return QMessageBox.warning(self,'环境未就绪','发布需要 Node、npm、git 和当前 Git 仓库。')
+        if self.publish_future and not self.publish_future.done():return QMessageBox.information(self,'正在发布','当前发布任务仍在运行，可在日志区域查看状态。')
+        if not all(resolve_command(key) for key in ('node','npm','git')) or not (ROOT/'.git').exists():return QMessageBox.warning(self,'环境未就绪','发布需要 Node、npm、git 和当前 Git 仓库。')
         self.save_timer.stop();self.save_current();message,ok=QInputDialog.getText(self,'提交说明','这次修改做了什么？',text='publish: update notes')
         if not ok or not message.strip():return
         paths=None if all_changes else article_assets(self.current_file,ROOT) if self.current_file else []
-        for command in publish_commands(paths,message.strip(),all_changes):
-            if command[:3]==['git','commit','-m']:
-                git=resolve_command('git');diff=subprocess.run([git,'diff','--cached'],cwd=ROOT,capture_output=True,text=True).stdout if git else ''
-                if QMessageBox.question(self,'确认发布',f'将提交以下变更：\n\n{diff[:7000]}')!=QMessageBox.Yes:return
-            if not self.run_command(command):return QMessageBox.warning(self,'发布中止','命令执行失败，请查看日志。已暂存内容不会丢失。')
-        self.reload_content();self.change_detail.setText('✓ 所有已提交文章都已发布，未发布标记已刷新。');QMessageBox.information(self,'发布完成','提交已推送。红点已清除，GitHub Actions 正在部署网站。')
+        if not all_changes and not paths:return QMessageBox.information(self,'没有当前文章','请先选择文章；仅发布新合集时请使用“发布全部变更”。')
+        scope='整个工作区' if all_changes else '\n'.join(f'• {path.relative_to(ROOT)}' for path in paths)
+        if QMessageBox.question(self,'确认上传',f'将检查、构建并真正推送到 GitHub：\n\n{scope}\n\n现有暂存区中的其他文件不会混入“发布当前文章”。继续吗？')!=QMessageBox.Yes:return
+        self.publish_current.setEnabled(False);self.publish_all.setEnabled(False);self.workspace_status.setText('正在检查并上传…');self.change_detail.setText('发布任务正在后台运行，编辑器仍可继续使用。');self.log.appendPlainText(f'\n[发布开始] {message.strip()}')
+        self.publish_future=self.executor.submit(execute_publish,ROOT,paths,message.strip(),all_changes);QTimer.singleShot(100,self.finish_publish)
+
+    def finish_publish(self):
+        if not self.publish_future or not self.publish_future.done():return QTimer.singleShot(100,self.finish_publish)
+        try:result=self.publish_future.result()
+        except Exception as error:result={'success':False,'log':'','error':str(error),'stage':'exception'}
+        if result.get('log'):self.log.appendPlainText(result['log'])
+        self.publish_all.setEnabled(True);self.publish_current.setEnabled(bool(self.current_file));self.refresh_change_markers()
+        if not result.get('success'):
+            self.workspace_status.setText('上传失败 · 本地内容安全');self.change_detail.setText(f"上传未完成：{result.get('error','未知错误')}")
+            return QMessageBox.warning(self,'上传未完成',f"失败阶段：{result.get('stage','未知')}\n{result.get('error','请查看日志。')}\n\n本地文件不会丢失，红点会继续保留。")
+        commit=result.get('commit','')[:8];self.workspace_status.setText(f'已上传 GitHub · {commit}');self.change_detail.setText('✓ 推送已验证，GitHub Actions 正在部署。');QTimer.singleShot(500,self.reload_content);QMessageBox.information(self,'上传完成',f'提交 {commit} 已推送并验证与远端跟踪分支一致。\n\n未上传红点将自动刷新。')
 
     def closeEvent(self,event:QCloseEvent):
         self.save_timer.stop();self.save_current();self.preview_watchdog.stop();self.preview_scroll_timer.stop();self.preview_refresh_timer.stop();self.sync_process.terminate();self.sync_process.waitForFinished(600);self.dev.terminate();self.dev.waitForFinished(1300);self.executor.shutdown(wait=False,cancel_futures=True)

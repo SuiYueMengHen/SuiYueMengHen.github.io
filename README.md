@@ -104,7 +104,7 @@ npm run publish -- "发布：文章标题"
 
 ## 合集与项目
 
-合集保存在 `src/content/collections/*.yaml`。`/blog/` 是合集书架，合集内文章只按 `collectionOrder` 排序；未加入合集的文章自动进入按分类与中文标题排序的“散篇书架”。时间顺序仍可从页脚的归档入口查看。
+合集保存在 `src/content/collections/*.yaml`。`/blog/` 是合集书架，合集内文章只按 `collectionOrder` 排序，并完全独立于分类系统；未加入合集的文章才会进入按分类与中文标题排序的“散篇书架”。时间顺序仍可从页脚的归档入口查看。
 
 导入或刷新 GitHub 项目快照：
 

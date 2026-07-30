@@ -30,7 +30,7 @@ export function uncollectedByCategory(posts: BlogPost[]): Array<[string, BlogPos
 }
 
 export function categoryPosts(posts: BlogPost[], category: string): BlogPost[] {
-  return visiblePosts(posts).filter((post) => post.data.category === category).sort((a, b) => a.data.title.localeCompare(b.data.title, 'zh-CN'));
+  return visiblePosts(posts).filter((post) => !post.data.collection && post.data.category === category).sort((a, b) => a.data.title.localeCompare(b.data.title, 'zh-CN'));
 }
 
 export function adjacentPosts(current: BlogPost, ordered: BlogPost[]) { const index = ordered.findIndex((post) => post.id === current.id); return { previous: index > 0 ? ordered[index - 1] : undefined, next: index >= 0 && index < ordered.length - 1 ? ordered[index + 1] : undefined }; }
@@ -73,7 +73,7 @@ export function relatedPosts(current: BlogPost, posts: BlogPost[], limit = 3): B
     .map((post) => ({
       post,
       score: post.data.tags.filter((tag) => current.data.tags.includes(tag)).length * 2
-        + Number(post.data.category === current.data.category),
+        + Number(!post.data.collection && !current.data.collection && post.data.category === current.data.category),
     }))
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score || b.post.data.publishDate.valueOf() - a.post.data.publishDate.valueOf())

@@ -9,7 +9,7 @@ const stats = contentStats(post.body);
 <article class:list={['post-card', { featured }]}>
   <div class="number" aria-hidden="true">{String(index + 1).padStart(2,'0')}.</div>
   <div class="card-content">
-    <div class="meta"><time datetime={post.data.publishDate.toISOString()}>{formatDate(post.data.publishDate)}</time><span>·</span><a href={`/categories/${encodeURIComponent(post.data.category)}/`}>{post.data.category}</a><span>·</span><span>{stats.words.toLocaleString('zh-CN')} 字</span><span>·</span><span>约 {stats.minutes} 分钟</span></div>
+    <div class="meta"><time datetime={post.data.publishDate.toISOString()}>{formatDate(post.data.publishDate)}</time><span>·</span>{post.data.collection?<span>合集章节</span>:<a href={`/categories/${encodeURIComponent(post.data.category)}/`}>{post.data.category}</a>}<span>·</span><span>{stats.words.toLocaleString('zh-CN')} 字</span><span>·</span><span>约 {stats.minutes} 分钟</span></div>
     <h3><a href={`/blog/${slug}/`}>{post.data.title}</a></h3>
     <p>{post.data.description}</p>
     <div class="card-foot"><div>{post.data.tags.slice(0,3).map((tag)=><a href={`/tags/${encodeURIComponent(tag)}/`}>#{tag}</a>)}</div><a class="read" href={`/blog/${slug}/`}>阅读全文&nbsp;→</a></div>

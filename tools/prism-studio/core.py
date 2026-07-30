@@ -134,11 +134,45 @@ def content_catalog(repo_root:Path)->dict:
     if blog.exists():
         for file in sorted([*blog.glob('*/index.md'),*blog.glob('*/index.mdx')]):
             data,_=split_frontmatter(file.read_text('utf-8'));category=str(data.get('category','')).strip()
-            if category:categories.add(category)
+            if category and not data.get('collection'):categories.add(category)
             tags.update(str(tag).strip() for tag in data.get('tags',[]) if str(tag).strip())
             articles.append({'path':file,'slug':file.parent.name,'title':data.get('title',file.parent.name),'category':category,'tags':data.get('tags',[]),'collection':data.get('collection'),'order':data.get('collectionOrder')})
+    categories.update(load_category_registry(repo_root))
     collections.sort(key=lambda item:(item['order'],item['title']))
     return {'collections':collections,'categories':sorted(categories),'tags':sorted(tags),'articles':articles}
+
+def category_registry_path(repo_root:Path)->Path:return repo_root/'src/data/categories.json'
+
+def load_category_registry(repo_root:Path)->list[str]:
+    try:data=json.loads(category_registry_path(repo_root).read_text('utf-8'))
+    except (OSError,json.JSONDecodeError):return []
+    return sorted({str(item).strip() for item in data if str(item).strip()}) if isinstance(data,list) else []
+
+def save_category_registry(repo_root:Path,categories:list[str])->Path:
+    names=sorted({name.strip() for name in categories if name.strip()})
+    target=category_registry_path(repo_root);atomic_save(target,json.dumps(names,ensure_ascii=False,indent=2)+'\n',repo_root)
+    return target
+
+def create_category(repo_root:Path,name:str)->Path:
+    name=name.strip()
+    if not name:raise ValueError('分类名称不能为空。')
+    return save_category_registry(repo_root,[*content_catalog(repo_root)['categories'],name])
+
+def migrate_category(repo_root:Path,old_name:str,new_name:str)->list[Path]:
+    old_name=old_name.strip();new_name=new_name.strip()
+    if not old_name or not new_name:raise ValueError('分类名称不能为空。')
+    changed=[]
+    for path in sorted([*(repo_root/'src/content/blog').glob('*/index.md'),*(repo_root/'src/content/blog').glob('*/index.mdx')]):
+        data,body=split_frontmatter(path.read_text('utf-8'))
+        if str(data.get('category','')).strip()==old_name:
+            data['category']=new_name;atomic_save(path,serialize_frontmatter(data,body),repo_root);changed.append(path)
+    names=[new_name if item==old_name else item for item in content_catalog(repo_root)['categories']]
+    save_category_registry(repo_root,names);return changed
+
+def delete_category(repo_root:Path,name:str)->list[Path]:
+    changed=migrate_category(repo_root,name,'未分类')
+    names=[item for item in content_catalog(repo_root)['categories'] if item!=name]
+    save_category_registry(repo_root,[*names,'未分类']);return changed
 
 def reorder_collection(repo_root:Path,collection_id:str,ordered_files:list[Path])->None:
     if not collection_id:raise ValueError('只能调整合集内文章的顺序。')
@@ -147,25 +181,32 @@ def reorder_collection(repo_root:Path,collection_id:str,ordered_files:list[Path]
         if data.get('collection')!=collection_id:raise ValueError(f'{path.parent.name} 不属于合集 {collection_id}')
         data['collectionOrder']=number;atomic_save(path,serialize_frontmatter(data,body),repo_root)
 
-def git_article_changes(repo_root:Path,runner:Callable=subprocess.run)->dict[str,dict]:
-    git=resolve_command('git');changes={}
-    if not git:return changes
-    result=runner([git,'status','--porcelain=v1','--untracked-files=all'],cwd=repo_root,capture_output=True,text=True)
-    if result.returncode:return changes
+def git_content_changes(repo_root:Path,runner:Callable=subprocess.run)->dict:
+    git=resolve_command('git');articles={};collections={};files=[]
+    if not git:return {'articles':articles,'collections':collections,'files':files}
+    result=runner([git,'-c','core.quotepath=false','status','--porcelain=v1','--untracked-files=all'],cwd=repo_root,capture_output=True,text=True)
+    if result.returncode:return {'articles':articles,'collections':collections,'files':files}
     for line in result.stdout.splitlines():
         if len(line)<4:continue
-        status=line[:2].strip() or 'M';relative=line[3:].split(' -> ')[-1];match=re.match(r'src/content/blog/([^/]+)/',relative)
-        if not match:continue
-        slug=match.group(1);item=changes.setdefault(slug,{'status':set(),'files':[],'added':0,'deleted':0});item['status'].add(status);item['files'].append(relative)
-    for slug,item in changes.items():
-        path=f'src/content/blog/{slug}'
-        diff=runner([git,'diff','--numstat','HEAD','--',path],cwd=repo_root,capture_output=True,text=True)
-        for line in diff.stdout.splitlines():
-            parts=line.split('\t')
-            if len(parts)>=2:
-                item['added']+=int(parts[0]) if parts[0].isdigit() else 0;item['deleted']+=int(parts[1]) if parts[1].isdigit() else 0
+        status=line[:2].strip() or 'M';relative=line[3:].split(' -> ')[-1].strip('"');files.append(relative)
+        match=re.match(r'src/content/blog/([^/]+)/',relative)
+        if match:
+            slug=match.group(1);item=articles.setdefault(slug,{'status':set(),'files':[],'added':0,'deleted':0});item['status'].add(status);item['files'].append(relative)
+        collection_match=re.match(r'src/content/collections/([^/]+)\.ya?ml$',relative)
+        if collection_match:collections[collection_match.group(1)]={'status':status,'file':relative}
+    diff=runner([git,'diff','--numstat','HEAD','--','src/content/blog'],cwd=repo_root,capture_output=True,text=True)
+    for line in diff.stdout.splitlines():
+        parts=line.split('\t');match=re.match(r'src/content/blog/([^/]+)/',parts[-1]) if len(parts)>=3 else None
+        if match and match.group(1) in articles:
+            item=articles[match.group(1)];item['added']+=int(parts[0]) if parts[0].isdigit() else 0;item['deleted']+=int(parts[1]) if parts[1].isdigit() else 0
+    for slug,item in articles.items():
+        for relative in item['files']:
+            path=repo_root/relative
+            if '?' in item['status'] and path.is_file():item['added']+=sum(1 for _ in path.open('r',encoding='utf-8',errors='ignore'))
         item['status']=' / '.join(sorted(item['status']))
-    return changes
+    return {'articles':articles,'collections':collections,'files':files}
+
+def git_article_changes(repo_root:Path,runner:Callable=subprocess.run)->dict[str,dict]:return git_content_changes(repo_root,runner)['articles']
 
 def trash_article(article_file:Path,repo_root:Path)->Path:
     article_dir=article_file.parent
@@ -193,4 +234,22 @@ def article_assets(article_file:Path,repo_root:Path|None=None)->list[Path]:
 def publish_commands(paths:list[Path]|None,message:str,all_changes:bool=False)->list[list[str]]:
     commands=[['npm','run','post:check'],['npm','test'],['npm','run','build']]
     commands.append(['git','add','-A'] if all_changes else ['git','add','--',*[str(path) for path in (paths or [])]])
-    commands.extend([['git','diff','--cached','--stat'],['git','commit','-m',message],['git','push']]);return commands
+    commit=['git','commit','-m',message] if all_changes else ['git','commit','--only','-m',message,'--',*[str(path) for path in (paths or [])]]
+    diff=['git','diff','--cached','--stat'] if all_changes else ['git','diff','--cached','--stat','--',*[str(path) for path in (paths or [])]]
+    commands.extend([diff,commit,['git','push']]);return commands
+
+def execute_publish(repo_root:Path,paths:list[Path]|None,message:str,all_changes:bool=False,runner:Callable=subprocess.run)->dict:
+    scoped=None if paths is None else [path.resolve().relative_to(repo_root.resolve()) if path.is_absolute() else path for path in paths]
+    logs=[]
+    for command in publish_commands(scoped,message,all_changes):
+        resolved=resolve_command(command[0]) if command[0] in {'npm','node','git','gh'} else command[0]
+        if not resolved:return {'success':False,'stage':'environment','log':'\n'.join(logs),'error':f'未找到命令：{command[0]}'}
+        try:result=runner([resolved,*command[1:]],cwd=repo_root,capture_output=True,text=True,env=command_environment(),timeout=300)
+        except subprocess.TimeoutExpired:return {'success':False,'stage':'timeout','log':'\n'.join(logs),'error':f'命令超时：{" ".join(command)}'}
+        logs.append('$ '+' '.join(command)+'\n'+(result.stdout+result.stderr).rstrip())
+        if result.returncode:return {'success':False,'stage':command[1] if len(command)>1 else command[0],'log':'\n'.join(logs),'error':(result.stderr or result.stdout).strip() or '命令执行失败'}
+    git=resolve_command('git') or 'git'
+    local=runner([git,'rev-parse','HEAD'],cwd=repo_root,capture_output=True,text=True).stdout.strip()
+    upstream=runner([git,'rev-parse','@{u}'],cwd=repo_root,capture_output=True,text=True).stdout.strip()
+    if not local or local!=upstream:return {'success':False,'stage':'verify','log':'\n'.join(logs),'error':'推送后本地提交与远端跟踪分支不一致。'}
+    return {'success':True,'stage':'done','log':'\n'.join(logs),'commit':local}
