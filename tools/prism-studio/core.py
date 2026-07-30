@@ -105,6 +105,12 @@ def save_project_snapshot(path:Path,data:dict,repo_root:Path)->None:
     content=yaml.safe_dump(clean,allow_unicode=True,sort_keys=False,default_flow_style=False)
     atomic_save(path,content,repo_root,backup=True)
 
+def delete_project_snapshot(path:Path,repo_root:Path)->Path:
+    project_dir=(repo_root/'src/content/projects').resolve();candidate=path.resolve()
+    if candidate.parent!=project_dir or candidate.suffix.lower() not in {'.yaml','.yml'}:raise ValueError('只能删除当前工作区中的项目 YAML 快照。')
+    if not candidate.is_file():raise FileNotFoundError(f'项目快照不存在：{candidate.name}')
+    candidate.unlink();return candidate
+
 def pages_site_url(repo_root:Path)->str:
     config=repo_root/'src/config/site.ts'
     if config.exists():
@@ -148,6 +154,19 @@ def environment_status(repo_root:Path,runner:Callable=subprocess.run)->dict[str,
 def slugify_collection(value:str)->str:
     normalized=unicodedata.normalize('NFKC',value).strip().lower()
     return re.sub(r'[^\w\u3400-\u9fff.-]+','-',normalized).strip('-') or 'collection'
+
+def create_article(repo_root:Path,title:str)->Path:
+    title=title.strip()
+    if not title:raise ValueError('文章标题不能为空。')
+    blog=repo_root/'src/content/blog';blog.mkdir(parents=True,exist_ok=True)
+    for path in [*blog.glob('*/index.md'),*blog.glob('*/index.mdx')]:
+        data,_=split_frontmatter(path.read_text('utf-8'))
+        if str(data.get('title','')).strip()==title:raise FileExistsError(f'内容库中已存在同名文章：《{title}》')
+    slug=slugify_collection(title);directory=blog/slug
+    if (directory/'index.md').exists() or (directory/'index.mdx').exists():raise FileExistsError(f'内容库中已存在相同 slug：{slug}')
+    directory.mkdir(parents=True,exist_ok=True)
+    data={'title':title,'description':'请用一到两句话概括文章内容，建议 30—80 字。','publishDate':date.today().isoformat(),'category':'未分类','tags':['待整理'],'featured':False,'draft':True}
+    target=directory/'index.md';atomic_save(target,serialize_frontmatter(data,'在这里开始写作。\n\n## 第一个小节\n\n正文内容。\n'),repo_root,backup=False);return target
 
 def preview_route(kind:str,identifier:str='')->str:
     from urllib.parse import quote
@@ -314,7 +333,44 @@ def trash_article(article_file:Path,repo_root:Path)->Path:
     trash=repo_root/'.prism-studio'/'trash';trash.mkdir(parents=True,exist_ok=True)
     target=trash/f"{article_dir.name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}";counter=2
     while target.exists():target=trash/f'{target.name}-{counter}';counter+=1
-    shutil.move(str(article_dir),target);return target
+    data,_=split_frontmatter(article_file.read_text('utf-8'));manifest={'originalSlug':article_dir.name,'title':str(data.get('title',article_dir.name)),'deletedAt':datetime.now(timezone.utc).isoformat()}
+    shutil.move(str(article_dir),target);(target/'.prism-trash.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n','utf-8');return target
+
+def list_trash(repo_root:Path)->list[dict]:
+    trash=repo_root/'.prism-studio'/'trash';items=[]
+    for entry in sorted(trash.iterdir(),reverse=True) if trash.exists() else []:
+        if not entry.is_dir():continue
+        article=next(iter([*entry.glob('index.md'),*entry.glob('index.mdx')]),None)
+        if not article:continue
+        data,_=split_frontmatter(article.read_text('utf-8'));manifest={}
+        try:manifest=json.loads((entry/'.prism-trash.json').read_text('utf-8'))
+        except (OSError,json.JSONDecodeError):pass
+        inferred=re.sub(r'-\d{8}-\d{6}(?:-\d+)?$','',entry.name)
+        items.append({'path':entry,'article':article,'title':str(data.get('title') or manifest.get('title') or inferred),'slug':str(manifest.get('originalSlug') or inferred),'deletedAt':manifest.get('deletedAt','')})
+    return items
+
+def restore_trash_entry(entry:Path,repo_root:Path)->Path:
+    trash=(repo_root/'.prism-studio'/'trash').resolve();entry=entry.resolve()
+    if not entry.is_relative_to(trash) or not entry.is_dir():raise ValueError('无效的废纸篓项目。')
+    item=next((value for value in list_trash(repo_root) if value['path'].resolve()==entry),None)
+    if not item:raise ValueError('废纸篓中的文章文件已不存在。')
+    blog=repo_root/'src/content/blog'
+    for path in [*blog.glob('*/index.md'),*blog.glob('*/index.mdx')]:
+        data,_=split_frontmatter(path.read_text('utf-8'))
+        if str(data.get('title','')).strip()==item['title'].strip():raise FileExistsError(f'无法恢复《{item["title"]}》：内容库中已有相同标题。')
+    target=blog/item['slug']
+    if target.exists():raise FileExistsError(f'无法恢复《{item["title"]}》：slug“{item["slug"]}”已被占用。')
+    shutil.move(str(entry),target);manifest=target/'.prism-trash.json'
+    if manifest.exists():manifest.unlink()
+    return next(iter([*target.glob('index.md'),*target.glob('index.mdx')]))
+
+def delete_trash_entries(entries:list[Path],repo_root:Path)->int:
+    trash=(repo_root/'.prism-studio'/'trash').resolve();deleted=0
+    for entry in entries:
+        candidate=entry.resolve()
+        if not candidate.is_relative_to(trash) or not candidate.is_dir():raise ValueError('无效的废纸篓项目。')
+        shutil.rmtree(candidate);deleted+=1
+    return deleted
 
 def ensure_mdx_article(article_file:Path,repo_root:Path)->Path:
     if article_file.suffix.lower()=='.mdx':return article_file

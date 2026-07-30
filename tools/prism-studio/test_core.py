@@ -1,6 +1,6 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import article_preview_version,atomic_save,article_assets,content_catalog,copy_images,create_category,create_collection,delete_category,ensure_mdx_article,execute_publish,git_content_changes,import_project,load_collection_snapshot,load_project_snapshot,migrate_category,move_article,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,reorder_collections,reorder_projects,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
+from core import article_preview_version,atomic_save,article_assets,content_catalog,copy_images,create_article,create_category,create_collection,delete_category,delete_project_snapshot,delete_trash_entries,ensure_mdx_article,execute_publish,git_content_changes,import_project,list_trash,load_collection_snapshot,load_project_snapshot,migrate_category,move_article,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,reorder_collections,reorder_projects,restore_trash_entry,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
@@ -20,6 +20,22 @@ class CoreTests(unittest.TestCase):
     def test_project_embed_converts_markdown_to_mdx(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);article=root/'src/content/blog/note/index.md';article.parent.mkdir(parents=True);article.write_text('正文','utf-8');converted=ensure_mdx_article(article,root);self.assertEqual(converted.name,'index.mdx');self.assertEqual(converted.read_text('utf-8'),'正文');self.assertFalse(article.exists());self.assertEqual(ensure_mdx_article(converted,root),converted)
+    def test_trash_does_not_reserve_title_but_restore_detects_conflict(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);first=create_article(root,'同名文章');trashed=trash_article(first,root);second=create_article(root,'同名文章');self.assertTrue(second.exists());self.assertEqual(list_trash(root)[0]['title'],'同名文章')
+            with self.assertRaises(FileExistsError):restore_trash_entry(trashed,root)
+            self.assertEqual(delete_trash_entries([trashed],root),1);self.assertEqual(list_trash(root),[])
+    def test_create_article_reuses_orphan_slug_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);orphan=root/'src/content/blog/demo2';orphan.mkdir(parents=True);(orphan/'unused.png').write_bytes(b'image');created=create_article(root,'demo2');self.assertEqual(created,orphan/'index.md');self.assertTrue((orphan/'unused.png').exists())
+    def test_collection_can_empty_and_refill_without_losing_articles(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);create_collection(root,'示例合集','用于测试空合集重新加入文章',slug='book');first=create_article(root,'第一篇');second=create_article(root,'第二篇')
+            move_article(root,first,'collection','book',[first]);move_article(root,first,'category','未分类',[])
+            self.assertEqual([item for item in content_catalog(root)['articles'] if item.get('collection')=='book'],[])
+            move_article(root,first,'collection','book',[first]);move_article(root,second,'collection','book',[first,second])
+            members=sorted((item for item in content_catalog(root)['articles'] if item.get('collection')=='book'),key=lambda item:item['order'])
+            self.assertEqual([item['title'] for item in members],['第一篇','第二篇']);self.assertEqual([item['order'] for item in members],[1,2])
     def test_failed_project_import_preserves_snapshot(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);target=root/'src/content/projects/o--r.yaml';target.parent.mkdir(parents=True);target.write_text('old','utf-8')
@@ -29,6 +45,11 @@ class CoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);path=root/'src/content/projects/o--r.yaml';data={'repo':'o/r','title':'Tool','description':'note','topics':['cli','cli',' mac '],'stars':2,'syncedAt':'2026-01-01T00:00:00Z'}
             save_project_snapshot(path,data,root);loaded=load_project_snapshot(path);self.assertEqual(loaded['topics'],['cli','mac']);self.assertEqual(loaded['stars'],2)
+    def test_delete_project_snapshot_is_scoped_to_project_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);project=root/'src/content/projects/o--r.yaml';project.parent.mkdir(parents=True);project.write_text('repo: o/r\n','utf-8');self.assertEqual(delete_project_snapshot(project,root),project.resolve());self.assertFalse(project.exists())
+            outside=root/'src/content/collections/book.yaml';outside.parent.mkdir(parents=True);outside.write_text('title: Book\n','utf-8')
+            with self.assertRaises(ValueError):delete_project_snapshot(outside,root)
     def test_pages_deployment_waits_for_matching_commit(self):
         class Response:
             def __init__(self,commit):self.commit=commit

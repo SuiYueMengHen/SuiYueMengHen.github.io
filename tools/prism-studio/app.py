@@ -27,9 +27,9 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
 
 from core import (
-    article_assets, article_preview_version, atomic_save, command_environment, content_catalog, copy_images, create_collection,
-    create_category, delete_category, ensure_mdx_article, environment_status, execute_publish, find_port,
-    git_content_changes, import_project, load_collection_snapshot, load_project_snapshot, migrate_category, move_article, normalize_repo, pages_site_url, preview_route,
+    article_assets, article_preview_version, atomic_save, command_environment, content_catalog, copy_images, create_article, create_collection,
+    create_category, delete_category, delete_project_snapshot, delete_trash_entries, ensure_mdx_article, environment_status, execute_publish, find_port,
+    git_content_changes, import_project, list_trash, load_collection_snapshot, load_project_snapshot, migrate_category, move_article, normalize_repo, pages_site_url, preview_route, restore_trash_entry,
     project_preview_version, reorder_collection, reorder_collections, reorder_projects, resolve_command, save_collection_snapshot, save_project_snapshot, serialize_frontmatter, split_frontmatter, trash_article,
     wait_for_pages_deployment,
 )
@@ -153,6 +153,50 @@ class CategoryDialog(QDialog):
         self.action=(action,self.list.currentItem().text());self.accept()
 
 
+class TrashDialog(QDialog):
+    def __init__(self,repo_root:Path,parent=None):
+        super().__init__(parent);self.repo_root=repo_root;self.changed=False;self.setWindowTitle('文章废纸篓');self.setMinimumSize(620,430)
+        layout=QVBoxLayout(self);hint=QLabel('废纸篓中的标题不占用内容库名称。恢复时若标题或 slug 与现有文章冲突，将停止恢复并提示。');hint.setObjectName('muted');hint.setWordWrap(True);layout.addWidget(hint)
+        self.list=QListWidget();self.list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection);layout.addWidget(self.list,1)
+        controls=QHBoxLayout();select_all=QPushButton('全选');restore=QPushButton('恢复所选');remove=QPushButton('永久删除所选');remove.setProperty('danger',True);empty=QPushButton('清空废纸篓');empty.setProperty('danger',True);close=QPushButton('完成');select_all.clicked.connect(self.list.selectAll);restore.clicked.connect(self.restore_selected);remove.clicked.connect(self.delete_selected);empty.clicked.connect(self.empty_trash);close.clicked.connect(self.accept)
+        for button in (select_all,restore,remove,empty):controls.addWidget(button)
+        controls.addStretch();controls.addWidget(close);layout.addLayout(controls);self.reload_items()
+
+    def reload_items(self):
+        self.list.clear()
+        for entry in list_trash(self.repo_root):
+            deleted=f" · {entry['deletedAt'][:10]}" if entry.get('deletedAt') else '';item=QListWidgetItem(f"《{entry['title']}》 · {entry['slug']}{deleted}");item.setData(Qt.UserRole,str(entry['path']));item.setToolTip(str(entry['path'].relative_to(self.repo_root)));self.list.addItem(item)
+        if not self.list.count():self.list.addItem('废纸篓为空');self.list.item(0).setFlags(Qt.NoItemFlags)
+
+    def selected_paths(self):return [Path(item.data(Qt.UserRole)) for item in self.list.selectedItems() if item.data(Qt.UserRole)]
+
+    def restore_selected(self):
+        paths=self.selected_paths()
+        if not paths:return QMessageBox.information(self,'请选择文章','请先选择需要恢复的文章。')
+        restored=[];errors=[]
+        for path in paths:
+            try:restored.append(restore_trash_entry(path,self.repo_root))
+            except (OSError,ValueError,FileExistsError) as error:errors.append(str(error))
+        if restored:self.changed=True;self.reload_items();QMessageBox.information(self,'恢复完成',f'已恢复 {len(restored)} 篇文章。')
+        if errors:QMessageBox.warning(self,'部分文章无法恢复','\n\n'.join(errors))
+
+    def delete_selected(self):
+        paths=self.selected_paths()
+        if not paths:return QMessageBox.information(self,'请选择文章','请先选择需要永久删除的文章。')
+        if QMessageBox.question(self,'永久删除',f'确定永久删除所选 {len(paths)} 篇文章吗？\n\n此操作无法从 Prism Studio 撤销。')!=QMessageBox.Yes:return
+        try:deleted=delete_trash_entries(paths,self.repo_root)
+        except (OSError,ValueError) as error:return QMessageBox.warning(self,'删除失败',str(error))
+        self.changed=True;self.reload_items();QMessageBox.information(self,'删除完成',f'已永久删除 {deleted} 篇文章。')
+
+    def empty_trash(self):
+        paths=[entry['path'] for entry in list_trash(self.repo_root)]
+        if not paths:return QMessageBox.information(self,'废纸篓为空','没有可以删除的文章。')
+        if QMessageBox.question(self,'清空废纸篓',f'确定永久删除废纸篓中的全部 {len(paths)} 篇文章吗？\n\n此操作无法从 Prism Studio 撤销。')!=QMessageBox.Yes:return
+        try:delete_trash_entries(paths,self.repo_root)
+        except (OSError,ValueError) as error:return QMessageBox.warning(self,'清空失败',str(error))
+        self.changed=True;self.reload_items();QMessageBox.information(self,'废纸篓已清空','所有文章已永久删除。')
+
+
 class CropCanvas(QLabel):
     def __init__(self, pixmap: QPixmap):
         super().__init__();self.source=pixmap;self.zoom=100;self.x_offset=0;self.y_offset=0;self.ratio=16/9;self.setMinimumSize(560,315);self.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
@@ -197,19 +241,32 @@ class ContentTree(QTreeWidget):
         if kind=='article':
             destination=target.parent() if target_kind=='article' else target
             if not destination or destination.data(0,ROLE_KIND) not in {'collection','category'}:event.ignore();return
-            old_parent=dragged.parent();old_index=old_parent.indexOfChild(dragged);insert=destination.indexOfChild(target) if target_kind=='article' and target.parent() is destination else destination.childCount();old_parent.takeChild(old_index)
-            if old_parent is destination and old_index<insert:insert-=1
-            destination.insertChild(max(0,insert),dragged);destination.setExpanded(True)
-            paths=[Path(destination.child(i).data(0,ROLE_PATH)) for i in range(destination.childCount()) if destination.child(i).data(0,ROLE_KIND)=='article']
+            dragged_path=str(dragged.data(0,ROLE_PATH));paths=[Path(destination.child(i).data(0,ROLE_PATH)) for i in range(destination.childCount()) if destination.child(i).data(0,ROLE_KIND)=='article' and destination.child(i).data(0,ROLE_PATH)!=dragged_path]
+            if target_kind=='article' and target.parent() is destination:
+                target_path=Path(target.data(0,ROLE_PATH));insert=paths.index(target_path) if target_path in paths else len(paths);paths.insert(insert,Path(dragged_path))
+            else:paths.append(Path(dragged_path))
             destination_id=destination.data(0,ROLE_COLLECTION) if destination.data(0,ROLE_KIND)=='collection' else destination.text(0).split('  ·  ')[0]
-            self.articleMoved.emit(dragged.data(0,ROLE_PATH),destination.data(0,ROLE_KIND),destination_id,paths);event.acceptProposedAction();return
+            destination_kind=destination.data(0,ROLE_KIND);ordered=[str(path) for path in paths]
+            # QTreeWidget still owns persistent indexes until dropEvent returns. Rebuilding
+            # synchronously here can make Qt apply the tail of the old drag to the new tree.
+            self.setEnabled(False);QTimer.singleShot(0,lambda:self.finish_article_drop(dragged_path,destination_kind,destination_id,ordered));event.ignore();return
         roots={'collection':'collections-root','project':'projects-root'}
         if kind not in roots:event.ignore();return
         root=dragged.parent();destination=target.parent() if target_kind==kind else target
         if not root or root.data(0,ROLE_KIND)!=roots[kind] or destination is not root:event.ignore();return
-        old_index=root.indexOfChild(dragged);insert=root.indexOfChild(target) if target_kind==kind else root.childCount();root.takeChild(old_index)
-        if old_index<insert:insert-=1
-        root.insertChild(max(0,insert),dragged);self.setCurrentItem(dragged);paths=[Path(root.child(i).data(0,ROLE_PATH)) for i in range(root.childCount())];self.orderChanged.emit(kind,paths);event.acceptProposedAction()
+        dragged_path=str(dragged.data(0,ROLE_PATH));paths=[str(root.child(i).data(0,ROLE_PATH)) for i in range(root.childCount()) if root.child(i).data(0,ROLE_PATH)!=dragged_path]
+        if target_kind==kind:
+            target_path=str(target.data(0,ROLE_PATH));insert=paths.index(target_path) if target_path in paths else len(paths);paths.insert(insert,dragged_path)
+        else:paths.append(dragged_path)
+        self.setEnabled(False);QTimer.singleShot(0,lambda:self.finish_order_drop(kind,paths));event.ignore()
+
+    def finish_article_drop(self,article_path,destination_kind,destination_id,ordered_paths):
+        try:self.articleMoved.emit(article_path,destination_kind,destination_id,ordered_paths)
+        finally:self.setEnabled(True);self.setFocus()
+
+    def finish_order_drop(self,kind,ordered_paths):
+        try:self.orderChanged.emit(kind,ordered_paths)
+        finally:self.setEnabled(True);self.setFocus()
 
 
 class Studio(QMainWindow):
@@ -241,11 +298,11 @@ class Studio(QMainWindow):
 
         left=self.panel('panel');lv=QVBoxLayout(left);lv.setContentsMargins(14,16,14,14);lv.setSpacing(10)
         head=QHBoxLayout();heading=QLabel('内容库');heading.setObjectName('panelTitle');self.pending_badge=QLabel('0 项未发布');self.pending_badge.setObjectName('badge');head.addWidget(heading);head.addStretch();head.addWidget(self.pending_badge);lv.addLayout(head)
-        self.tree=ContentTree();self.tree.itemSelectionChanged.connect(self.select_item);self.tree.articleMoved.connect(self.apply_article_move);self.tree.orderChanged.connect(self.apply_tree_order);lv.addWidget(self.tree,1)
+        self.tree=ContentTree();self.tree.itemSelectionChanged.connect(self.select_item);self.tree.itemClicked.connect(self.expand_tree_item);self.tree.articleMoved.connect(self.apply_article_move);self.tree.orderChanged.connect(self.apply_tree_order);lv.addWidget(self.tree,1)
         create=QHBoxLayout();new_article=QPushButton('新建文章');new_article.setProperty('primary',True);new_article.clicked.connect(self.new_article);new_collection=QPushButton('新建合集');new_collection.clicked.connect(self.new_collection);create.addWidget(new_article);create.addWidget(new_collection);lv.addLayout(create)
         new_category=QPushButton('新建分类');new_category.clicked.connect(self.new_category_from_library);lv.addWidget(new_category)
         self.add_project_page_button=QPushButton('添加 GitHub 项目到项目页');self.add_project_page_button.clicked.connect(lambda:self.add_project(False));lv.addWidget(self.add_project_page_button)
-        delete=QPushButton('移到废纸篓');delete.setProperty('danger',True);delete.clicked.connect(self.delete_article);lv.addWidget(delete)
+        trash_actions=QHBoxLayout();delete=QPushButton('移到废纸篓');delete.setProperty('danger',True);delete.clicked.connect(self.delete_article);open_trash=QPushButton('打开废纸篓');open_trash.clicked.connect(self.open_trash);trash_actions.addWidget(delete);trash_actions.addWidget(open_trash);lv.addLayout(trash_actions)
         self.change_detail=QLabel('选择文章后，这里会显示尚未发布的变更。');self.change_detail.setObjectName('changeDetail');self.change_detail.setWordWrap(True);lv.addWidget(self.change_detail);split.addWidget(left)
 
         middle=self.panel('panel');mv=QVBoxLayout(middle);mv.setContentsMargins(18,16,18,14);mv.setSpacing(10)
@@ -272,6 +329,7 @@ class Studio(QMainWindow):
         self.project_cover_alt=QLineEdit();self.project_cover_alt.setPlaceholderText('描述项目封面，供无障碍阅读使用');project_layout.addRow('封面替代文本',self.project_cover_alt)
         project_flags=QHBoxLayout();self.project_featured=QCheckBox('重点项目');self.project_order=QSpinBox();self.project_order.setRange(1,9999);self.project_order.setPrefix('列表序号 ');self.project_order.setReadOnly(True);self.project_order.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons);self.project_order.setToolTip('项目顺序由左侧项目列表拖动决定');project_flags.addWidget(self.project_featured);project_flags.addWidget(self.project_order);project_flags.addStretch();project_layout.addRow('展示设置',project_flags)
         self.project_readonly=QLabel('GitHub 的语言、Stars、Forks 和许可证会在重新导入项目时刷新；这里编辑的是网站展示内容。');self.project_readonly.setObjectName('muted');self.project_readonly.setWordWrap(True);project_layout.addRow('',self.project_readonly)
+        project_actions=QHBoxLayout();self.delete_project_button=QPushButton('删除当前项目快照');self.delete_project_button.setProperty('danger',True);self.delete_project_button.clicked.connect(self.delete_project);project_actions.addWidget(self.delete_project_button);project_actions.addStretch();project_layout.addRow('危险操作',project_actions)
         self.project_form_scroll.setWidget(self.project_form_surface);self.tabs.addTab(self.project_form_scroll,'项目信息');self.tabs.setTabVisible(1,False)
         self.collection_form_scroll=QScrollArea();self.collection_form_scroll.setObjectName('formScroll');self.collection_form_scroll.viewport().setObjectName('formViewport');self.collection_form_scroll.setWidgetResizable(True);self.collection_form_scroll.setFrameShape(QFrame.NoFrame);self.collection_form_surface=QWidget();self.collection_form_surface.setObjectName('formSurface');collection_layout=QFormLayout(self.collection_form_surface);collection_layout.setContentsMargins(12,14,12,12);collection_layout.setSpacing(11);collection_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.collection_title_field=QLineEdit();collection_layout.addRow('合集名称',self.collection_title_field);self.collection_description=QTextEdit();self.collection_description.setMinimumHeight(100);collection_layout.addRow('合集简介',self.collection_description);self.collection_subtitle=QLineEdit();collection_layout.addRow('副标题',self.collection_subtitle);self.collection_volume=QLineEdit();collection_layout.addRow('卷号',self.collection_volume);self.collection_status=QComboBox();self.collection_status.addItem('连载中','ongoing');self.collection_status.addItem('已完成','complete');self.collection_status.addItem('暂停更新','paused');collection_layout.addRow('状态',self.collection_status);self.collection_featured=QCheckBox('重点合集');collection_layout.addRow('展示',self.collection_featured);self.collection_order_hint=QLabel('合集和章节的顺序由左侧内容库决定；直接拖动即可调整。');self.collection_order_hint.setObjectName('muted');self.collection_order_hint.setWordWrap(True);collection_layout.addRow('排序',self.collection_order_hint);self.collection_form_scroll.setWidget(self.collection_form_surface);self.tabs.addTab(self.collection_form_scroll,'合集信息');self.tabs.setTabVisible(2,False)
@@ -299,7 +357,7 @@ class Studio(QMainWindow):
         return {'bg':'#dedbd3','surface':'#f7f5ef','surface2':'#eeeae2','input':'#fffefa','text':'#171713','muted':'#6f6b63','border':'#cbc7bc','hover':'#ece7dd','pressed':'#ddd6c9','selected':'#dfd9cc','button':'#fdfcf8','primary':'#171713','on_primary':'#fffefa','danger':'#a6382b','danger_border':'#d5a59d','badge':'#e9e5dc','live_bg':'#e2efe8','live':'#26735d','preview':'#27251f','scroll':'#bcb7ac'}
 
     def stylesheet(self):
-        c=self.theme_colors();arrow=str(resource_path(f"assets/chevron-{'dark' if self.theme=='dark' else 'light'}.svg"))
+        c=self.theme_colors();arrow=str(resource_path(f"assets/chevron-{'dark' if self.theme=='dark' else 'light'}.svg"));check=str(resource_path(f"assets/check-{'dark' if self.theme=='dark' else 'light'}.svg"))
         css='''
         QMainWindow{background:$BG;color:$TEXT} QWidget{font-family:-apple-system,"Helvetica Neue";font-size:13px;color:$TEXT;background:transparent}
         #topbar,#panel{background:$SURFACE;border:1px solid $BORDER;border-radius:12px} #wordmark{font-family:"Times New Roman";font-size:15px;font-weight:700;letter-spacing:3px} #panelTitle{font-family:"Times New Roman";font-size:19px;font-weight:700}
@@ -307,14 +365,14 @@ class Studio(QMainWindow):
         QDialog,QMessageBox,QInputDialog,QFileDialog,QCalendarWidget,QMenu{background-color:$SURFACE;color:$TEXT} QDialog QLabel,QMessageBox QLabel,QInputDialog QLabel,QFileDialog QLabel,QCalendarWidget QLabel{color:$TEXT;background:transparent} QMessageBox{min-width:420px} QMessageBox QLabel#qt_msgbox_label{min-width:300px;color:$TEXT} QMessageBox QLabel#qt_msgboxex_icon_label{background:transparent} QDialogButtonBox{background:transparent} QMenu{border:1px solid $BORDER;padding:5px} QMenu::item{min-height:28px;padding:4px 22px 4px 10px;border-radius:5px;color:$TEXT} QMenu::item:selected{background:$SELECTED;color:$TEXT} QCalendarWidget QWidget#qt_calendar_navigationbar{background:$SURFACE2} QCalendarWidget QToolButton{color:$TEXT;background:$BUTTON;border:1px solid $BORDER;border-radius:6px;min-height:30px} QCalendarWidget QAbstractItemView{background:$INPUT;color:$TEXT;selection-background-color:$SELECTED;selection-color:$TEXT}
         QScrollArea#formScroll,QWidget#formViewport,QWidget#formSurface{background-color:$SURFACE;color:$TEXT} QTabWidget::pane{border:1px solid $BORDER;border-radius:8px;background:$SURFACE}
         QTreeWidget,QPlainTextEdit,QTextEdit,QLineEdit,QDateEdit,QSpinBox,QComboBox,QListWidget{background:$INPUT;color:$TEXT;border:1px solid $BORDER;border-radius:8px;padding:7px;selection-background-color:$SELECTED;selection-color:$TEXT}
-        QLabel,QCheckBox,QRadioButton,QGroupBox{color:$TEXT} QLineEdit:read-only{background:$SURFACE2;color:$MUTED} QTreeWidget{padding:7px} QTreeWidget::item{min-height:29px;border-radius:6px;padding:2px 5px} QTreeWidget::item:hover{background:$HOVER} QTreeWidget::item:selected{background:$SELECTED;color:$TEXT}
+        QLabel,QCheckBox,QRadioButton,QGroupBox{color:$TEXT} QCheckBox{min-height:32px;spacing:9px} QCheckBox::indicator{width:17px;height:17px;border:1px solid $BORDER;border-radius:4px;background:$INPUT} QCheckBox::indicator:unchecked:hover{border:2px solid $TEXT;background:$HOVER} QCheckBox::indicator:checked{image:url("$CHECK");background:$PRIMARY;border:1px solid $PRIMARY} QCheckBox::indicator:checked:hover{border:2px solid $PRIMARY} QCheckBox::indicator:disabled{background:$SURFACE2;border-color:$BORDER} QLineEdit:read-only{background:$SURFACE2;color:$MUTED} QTreeWidget{padding:7px} QTreeWidget::item{min-height:29px;border-radius:6px;padding:2px 5px} QTreeWidget::item:hover{background:$HOVER} QTreeWidget::item:selected{background:$SELECTED;color:$TEXT}
         QComboBox{padding-right:34px;min-height:25px} QComboBox::drop-down{subcontrol-origin:padding;subcontrol-position:top right;width:30px;border-left:1px solid $BORDER;border-top-right-radius:7px;border-bottom-right-radius:7px;background:$SURFACE2} QComboBox::drop-down:hover{background:$HOVER} QComboBox::down-arrow{image:url("$ARROW");width:12px;height:8px} QComboBox QAbstractItemView{background:$INPUT;color:$TEXT;border:1px solid $BORDER;outline:0;padding:5px;selection-background-color:$SELECTED;selection-color:$TEXT}
         #markdownEditor{padding:18px;font-size:14px;line-height:1.5;background:$INPUT} #tagPool::item{min-height:25px} QTabBar::tab{padding:8px 14px;color:$MUTED;background:transparent} QTabBar::tab:selected{color:$TEXT;border-bottom:2px solid #c84a38}
         QPushButton{min-height:36px;padding:4px 12px;border:1px solid $BORDER;border-radius:8px;background:$BUTTON;color:$TEXT} QPushButton:hover{background:$HOVER} QPushButton:pressed{background:$PRESSED} QPushButton[primary="true"]{background:$PRIMARY;color:$ONPRIMARY;border-color:$PRIMARY;font-weight:600} QPushButton[danger="true"]{color:$DANGER;border-color:$DANGERBORDER} QPushButton[compact="true"]{min-height:30px;padding:2px 9px} QPushButton:disabled{color:$MUTED;background:$SURFACE2;border-color:$BORDER}
         #changeDetail{padding:10px;background:$SURFACE2;border-radius:8px;color:$MUTED;font-size:11px} #previewFrame{background:$PREVIEW;border:1px solid $BORDER;border-radius:10px;padding:6px} QSplitter::handle{background:transparent;width:9px;height:9px} QSplitter::handle:hover{background:$BORDER;border-radius:3px}
         QScrollBar:vertical{width:9px;background:transparent} QScrollBar::handle:vertical{background:$SCROLL;border-radius:4px;min-height:30px} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0} QToolTip{background:$TEXT;color:$INPUT;border:0;padding:6px}
         '''
-        replacements={'$BG':c['bg'],'$SURFACE2':c['surface2'],'$SURFACE':c['surface'],'$INPUT':c['input'],'$TEXT':c['text'],'$MUTED':c['muted'],'$BORDER':c['border'],'$HOVER':c['hover'],'$PRESSED':c['pressed'],'$SELECTED':c['selected'],'$BUTTON':c['button'],'$PRIMARY':c['primary'],'$ONPRIMARY':c['on_primary'],'$DANGERBORDER':c['danger_border'],'$DANGER':c['danger'],'$BADGE':c['badge'],'$LIVEBG':c['live_bg'],'$LIVE':c['live'],'$PREVIEW':c['preview'],'$SCROLL':c['scroll'],'$ARROW':arrow}
+        replacements={'$BG':c['bg'],'$SURFACE2':c['surface2'],'$SURFACE':c['surface'],'$INPUT':c['input'],'$TEXT':c['text'],'$MUTED':c['muted'],'$BORDER':c['border'],'$HOVER':c['hover'],'$PRESSED':c['pressed'],'$SELECTED':c['selected'],'$BUTTON':c['button'],'$PRIMARY':c['primary'],'$ONPRIMARY':c['on_primary'],'$DANGERBORDER':c['danger_border'],'$DANGER':c['danger'],'$BADGE':c['badge'],'$LIVEBG':c['live_bg'],'$LIVE':c['live'],'$PREVIEW':c['preview'],'$SCROLL':c['scroll'],'$ARROW':arrow,'$CHECK':check}
         for token,value in replacements.items():css=css.replace(token,value)
         return css
 
@@ -376,6 +434,7 @@ class Studio(QMainWindow):
             for article in sorted(by_collection[collection['id']],key=lambda x:(x.get('order') or 9999,x['title'])):
                 item=self.article_item(article);parent.addChild(item)
                 if selected_path==item.data(0,ROLE_PATH):target_item=item
+            parent.setExpanded(parent.childCount()>0)
         loose_root=QTreeWidgetItem(['散篇']);loose_root.setData(0,ROLE_KIND,'loose-root');loose_root.setFlags(loose_root.flags()&~Qt.ItemIsDragEnabled);self.tree.addTopLevelItem(loose_root);loose_root.setExpanded(True)
         categories={name:[] for name in self.catalog.get('categories',[]) or ['未分类']}
         for article in [a for a in articles if not a.get('collection')]:categories.setdefault(article['category'] or '未分类',[]).append(article)
@@ -384,6 +443,7 @@ class Studio(QMainWindow):
             for article in sorted(items,key=lambda x:x['title']):
                 item=self.article_item(article);parent.addChild(item)
                 if selected_path==item.data(0,ROLE_PATH):target_item=item
+            parent.setExpanded(parent.childCount()>0)
         projects=QTreeWidgetItem(['项目快照']);projects.setData(0,ROLE_KIND,'projects-root');projects.setFlags((projects.flags()|Qt.ItemIsDropEnabled)&~Qt.ItemIsDragEnabled);self.tree.addTopLevelItem(projects);projects.setExpanded(True)
         for project in self.catalog.get('projects',[]):
             changed=self.project_changes.get(project['id']);item=QTreeWidgetItem([('●  ' if changed else '')+project['title']]);item.setData(0,ROLE_KIND,'project');item.setData(0,ROLE_PATH,str(project['path']));item.setFlags(item.flags()|Qt.ItemIsDragEnabled);projects.addChild(item)
@@ -708,6 +768,7 @@ class Studio(QMainWindow):
             if self.selected_kind=='collection':self.collection_save_timer.stop();self.save_collection_current()
             if self.selected_kind=='category':self.category_save_timer.stop();self.save_category_current()
             path=Path(item.data(0,ROLE_PATH));self.selected_kind=kind;self.selected_path=path;identifier=item.data(0,ROLE_COLLECTION) if kind=='collection' else path.stem
+            if kind=='collection':item.setExpanded(True)
             self.publish_current.setText('上传当前合集' if kind=='collection' else '上传当前项目');self.publish_current.setEnabled(path.exists());self.current_title.setText(item.text(0).replace('●  ','').split('  ·  ')[0]);self.save_state.setText('本地快照 · 可单独上传')
             changed=(self.collection_changes if kind=='collection' else self.project_changes).get(identifier);self.change_detail.setText(f"● 尚未上传 · {changed['status']}\n{changed['file']}" if changed else '✓ 当前内容与 GitHub 仓库一致。')
             self.current_file=None
@@ -728,6 +789,9 @@ class Studio(QMainWindow):
         self.category.setCurrentIndex(max(0,category_index));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.editor.setPlainText(body);self.loading=False;self.update_category_availability()
         self.preview_expected_version=article_preview_version(data,body);self.set_content_mode('article');self.document_dirty=False;self.loaded_view_state=self.view_state();self.current_title.setText(data.get('title',path.parent.name));self.save_state.setText('草稿 · 不会出现在正式网站' if self.draft.isChecked() else '已保存到本地');self.publish_current.setText('发布当前文章' if self.draft.isChecked() else '上传当前文章');self.publish_current.setEnabled(True);self.project_button.setEnabled(self.gh_ready);changed=self.changes.get(path.parent.name);self.change_detail.setText(f"● 尚未上传 · {changed['status']} · 新增 {changed['added']} 行 / 删除 {changed['deleted']} 行\n"+'\n'.join(changed['files']) if changed else '✓ 当前文章与 GitHub 仓库一致，没有待上传修改。')
         settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme,'last_article':str(path)});write_app_settings(settings);self.navigate_preview(preview_route('article',path.parent.name))
+
+    def expand_tree_item(self,item,_column=0):
+        if item.data(0,ROLE_KIND) in {'collection','category','collections-root','loose-root','projects-root'} and item.childCount():item.setExpanded(True)
 
     def choose_workspace(self):
         global ROOT
@@ -815,16 +879,13 @@ class Studio(QMainWindow):
     def new_article(self):
         title,ok=QInputDialog.getText(self,'新建文章','文章标题')
         if not ok or not title.strip():return
-        npm=resolve_command('npm')
-        if not npm:return QMessageBox.warning(self,'无法创建文章','未找到 npm。')
-        self.workspace_status.setText('正在创建文章…');future=self.executor.submit(subprocess.run,[npm,'run','post:new','--','--title',title.strip()],cwd=ROOT,capture_output=True,text=True,env=command_environment());QTimer.singleShot(60,lambda:self.finish_new_article(future))
+        self.workspace_status.setText('正在创建文章…');future=self.executor.submit(create_article,ROOT,title.strip());QTimer.singleShot(60,lambda:self.finish_new_article(future))
 
     def finish_new_article(self,future):
         if not future.done():return QTimer.singleShot(60,lambda:self.finish_new_article(future))
-        result=future.result();self.log.appendPlainText(result.stdout+result.stderr)
-        if result.returncode:self.workspace_status.setText('文章创建失败');return QMessageBox.warning(self,'创建失败','请查看运行日志。')
-        match=re.search(r'已创建草稿：(.+index\.(?:md|mdx))',result.stdout);created=ROOT/match.group(1).strip() if match else None;self.workspace_status.setText('新文章已创建在“未分类” · 等待发布');self.catalog=content_catalog(ROOT);self.load_tree(str(created) if created else None)
-        if created:QTimer.singleShot(0,lambda:self.select_tree_path(created))
+        try:created=future.result()
+        except (OSError,ValueError,FileExistsError) as error:self.workspace_status.setText('文章创建失败');return QMessageBox.warning(self,'创建失败',str(error))
+        self.log.appendPlainText(f'已创建草稿：{created.relative_to(ROOT)}');self.workspace_status.setText('新文章已创建在“未分类” · 等待发布');self.catalog=content_catalog(ROOT);self.load_tree(str(created));QTimer.singleShot(0,lambda:self.select_tree_path(created))
 
     def new_collection(self):
         dialog=CollectionDialog(self)
@@ -864,6 +925,10 @@ class Studio(QMainWindow):
         title=self.title_field.text() or self.current_file.parent.name
         if QMessageBox.question(self,'移到废纸篓',f'确定移除《{title}》吗？\n\n文章会保存在 .prism-studio/trash，可手动恢复；Git 中会标记为待发布删除。')!=QMessageBox.Yes:return
         target=trash_article(self.current_file,ROOT);self.current_file=None;self.editor.clear();self.current_title.setText('请选择一篇文章');self.reload_content();self.log.appendPlainText(f'文章已移到可恢复废纸篓：{target.relative_to(ROOT)}')
+
+    def open_trash(self):
+        dialog=TrashDialog(ROOT,self);dialog.exec()
+        if dialog.changed:self.current_file=None;self.selected_path=None;self.editor.clear();self.current_title.setText('请选择一篇文章');self.reload_content();self.workspace_status.setText('废纸篓已更新 · 等待发布')
 
     def choose_cover(self):
         if not self.current_file:return QMessageBox.information(self,'选择封面','请先选择一篇文章。')
@@ -909,6 +974,14 @@ class Studio(QMainWindow):
         self.catalog=content_catalog(ROOT);self.selected_kind='project' if not embed else 'article';self.selected_path=path if not embed else self.current_file;self.load_tree(str(self.selected_path));self.refresh_change_markers();self.workspace_status.setText('项目已保存到本地 · 等待上传');self.log.appendPlainText(f'项目快照已保存：{path.relative_to(ROOT)}')
         if not embed:QTimer.singleShot(100,lambda:self.select_tree_path(path))
         QMessageBox.information(self,'项目已添加',f'{repo} 已加入项目页的本地快照。\n\n上传后网站项目页会自动显示该项目。')
+
+    def delete_project(self):
+        if self.selected_kind!='project' or not self.selected_path:return QMessageBox.information(self,'删除项目快照','请先在左侧选择一个项目。')
+        self.project_save_timer.stop();self.save_project_current();path=self.selected_path;title=self.project_title_field.text().strip() or path.stem;repo=self.project_repo.text().strip()
+        if QMessageBox.question(self,'删除项目快照',f'确定删除“{title}”吗？\n\n本地将删除 {path.name}，GitHub 仓库本身不会被删除。使用“发布全部变更”后，项目才会从线上项目页移除。')!=QMessageBox.Yes:return
+        try:delete_project_snapshot(path,ROOT)
+        except (OSError,ValueError) as error:return QMessageBox.warning(self,'删除失败',str(error))
+        self.selected_kind='';self.selected_path=None;self.current_file=None;self.project_original={};self.project_loaded_state=None;self.set_content_mode('');self.current_title.setText('请选择一项内容');self.save_state.setText('项目快照已删除 · 等待上传');self.catalog=content_catalog(ROOT);self.load_tree();self.refresh_change_markers();self.navigate_preview('/projects/');self.workspace_status.setText('项目快照已删除 · 发布全部变更后线上生效');self.log.appendPlainText(f'已删除项目快照：{path.relative_to(ROOT)}'+(f'（{repo}）' if repo else ''))
 
     def select_tree_path(self,path):
         iterator=QTreeWidgetItemIterator(self.tree)

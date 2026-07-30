@@ -10,8 +10,8 @@ if (!title) {
 }
 const slug = title.toLowerCase().normalize('NFKC').replace(/[^\p{Letter}\p{Number}]+/gu, '-').replace(/^-|-$/g, '') || `note-${Date.now()}`;
 const directory = path.join(process.cwd(), 'src/content/blog', slug);
-if (fs.existsSync(directory)) {
-  console.error(`文章目录已存在：${directory}`);
+if (fs.existsSync(path.join(directory, 'index.md')) || fs.existsSync(path.join(directory, 'index.mdx'))) {
+  console.error(`内容库中已存在相同 slug：${slug}`);
   process.exit(1);
 }
 fs.mkdirSync(directory, { recursive: true });
