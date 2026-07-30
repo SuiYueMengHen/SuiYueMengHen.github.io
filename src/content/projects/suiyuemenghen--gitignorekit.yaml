@@ -1,12 +1,16 @@
-repo: "SuiYueMengHen/gitignorekit"
-title: "gitignorekit"
-description: "A small web utility for generating and managing .gitignore templates."
-language: "HTML"
+repo: SuiYueMengHen/gitignorekit
+title: gitignorekit
+description: A small web utility for generating and managing .gitignore templates.
+language: HTML
 stars: 0
 forks: 0
-license: "MIT"
-topics: []
+license: MIT
+topics:
+- astro
+- blog
+- github-pages
+- markdown
 homepage: null
 featured: false
-order: 100
-syncedAt: "2026-07-30T03:12:46.235278+00:00"
+order: 101
+syncedAt: '2026-07-30T03:12:46.235278+00:00'
