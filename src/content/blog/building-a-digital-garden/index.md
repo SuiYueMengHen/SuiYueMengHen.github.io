@@ -1,11 +1,14 @@
 ---
-title: "把博客当作一座数字花园"
-description: "比起不断追赶内容流量，个人博客更适合成为一个可以修订、连接和长期生长的知识空间。"
-publishDate: 2026-07-20
-category: "方法"
+title: 把博客当作一座数字花园
+description: 比起不断追赶内容流量，个人博客更适合成为一个可以修订、连接和长期生长的知识空间。
+publishDate: '2026-07-20'
+category: 方法
 collection: digital-garden
 collectionOrder: 1
-tags: ["数字花园", "知识管理", "写作"]
+tags:
+- 数字花园
+- 知识管理
+- 写作
 featured: false
 draft: false
 ---

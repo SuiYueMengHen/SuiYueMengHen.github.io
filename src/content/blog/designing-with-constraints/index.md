@@ -1,11 +1,14 @@
 ---
-title: "限制如何帮助我们设计"
-description: "从版心、字体与信息层级的限制出发，看看克制为什么不是创意的对立面，而是形成风格的条件。"
-publishDate: 2026-07-12
-category: "设计"
+title: 限制如何帮助我们设计
+description: 从版心、字体与信息层级的限制出发，看看克制为什么不是创意的对立面，而是形成风格的条件。
+publishDate: '2026-07-12'
+category: 设计
 collection: digital-garden
 collectionOrder: 2
-tags: ["设计", "排版", "界面"]
+tags:
+- 设计
+- 排版
+- 界面
 featured: false
 draft: false
 ---
