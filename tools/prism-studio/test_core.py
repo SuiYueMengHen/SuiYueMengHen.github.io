@@ -1,6 +1,6 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import article_preview_version,atomic_save,article_assets,content_catalog,copy_images,create_category,create_collection,delete_category,execute_publish,git_content_changes,import_project,load_project_snapshot,migrate_category,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
+from core import article_preview_version,atomic_save,article_assets,content_catalog,copy_images,create_category,create_collection,delete_category,ensure_mdx_article,execute_publish,git_content_changes,import_project,load_collection_snapshot,load_project_snapshot,migrate_category,move_article,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,reorder_collections,reorder_projects,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
@@ -17,6 +17,9 @@ class CoreTests(unittest.TestCase):
     def test_image_collision_and_assets(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'cover.png';source.write_bytes(b'a');article=root/'post';article.mkdir();(article/'cover.png').write_bytes(b'b');copied=copy_images([source],article);self.assertEqual(copied[0].name,'cover-2.png');index=article/'index.md';index.write_text('![封面](./cover-2.png)','utf-8');self.assertEqual(article_assets(index),[index,copied[0]])
+    def test_project_embed_converts_markdown_to_mdx(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);article=root/'src/content/blog/note/index.md';article.parent.mkdir(parents=True);article.write_text('正文','utf-8');converted=ensure_mdx_article(article,root);self.assertEqual(converted.name,'index.mdx');self.assertEqual(converted.read_text('utf-8'),'正文');self.assertFalse(article.exists());self.assertEqual(ensure_mdx_article(converted,root),converted)
     def test_failed_project_import_preserves_snapshot(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);target=root/'src/content/projects/o--r.yaml';target.parent.mkdir(parents=True);target.write_text('old','utf-8')
@@ -68,8 +71,23 @@ class CoreTests(unittest.TestCase):
             for slug,order in [('a',2),('b',1)]:
                 path=root/f'src/content/blog/{slug}/index.md';path.parent.mkdir(parents=True);path.write_text(serialize_frontmatter({'title':slug,'description':'d','publishDate':'2026-01-01','category':'方法','tags':['写作'],'collection':'book','collectionOrder':order},'正文'),encoding='utf-8');files.append(path)
             project=root/'src/content/projects/o--r.yaml';project.parent.mkdir(parents=True);project.write_text('title: Prism\nrepo: o/r\n','utf-8')
-            catalog=content_catalog(root);self.assertEqual(catalog['categories'],[]);self.assertEqual(catalog['tags'],['写作']);self.assertEqual(catalog['collections'][0]['id'],'book');self.assertEqual(catalog['projects'][0]['repo'],'o/r')
+            catalog=content_catalog(root);self.assertEqual(catalog['categories'],['未分类']);self.assertEqual(catalog['tags'],['写作']);self.assertEqual(catalog['collections'][0]['id'],'book');self.assertEqual(catalog['projects'][0]['repo'],'o/r')
             reorder_collection(root,'book',files);self.assertEqual(split_frontmatter(files[0].read_text('utf-8'))[0]['collectionOrder'],1);self.assertEqual(split_frontmatter(files[1].read_text('utf-8'))[0]['collectionOrder'],2)
+    def test_move_article_between_category_and_collection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);collections=root/'src/content/collections';collections.mkdir(parents=True);(collections/'book.yaml').write_text('title: 书\ndescription: 简介\norder: 1\n','utf-8')
+            first=root/'src/content/blog/a/index.md';second=root/'src/content/blog/b/index.md'
+            for path,title in ((first,'甲'),(second,'乙')):path.parent.mkdir(parents=True);path.write_text(serialize_frontmatter({'title':title,'category':'未分类'},'正文'),'utf-8')
+            move_article(root,first,'collection','book',[first]);data,_=split_frontmatter(first.read_text('utf-8'));self.assertEqual(data['collection'],'book');self.assertEqual(data['category'],'未分类');self.assertEqual(data['collectionOrder'],1)
+            move_article(root,second,'collection','book',[first,second]);self.assertEqual(split_frontmatter(second.read_text('utf-8'))[0]['collectionOrder'],2)
+            move_article(root,first,'category','技术');data,_=split_frontmatter(first.read_text('utf-8'));self.assertNotIn('collection',data);self.assertEqual(data['category'],'技术');self.assertEqual(split_frontmatter(second.read_text('utf-8'))[0]['collectionOrder'],1)
+    def test_reorder_collection_and_project_lists(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);collections=root/'src/content/collections';projects=root/'src/content/projects';collections.mkdir(parents=True);projects.mkdir(parents=True)
+            c1=collections/'a.yaml';c2=collections/'b.yaml';c1.write_text('title: A\ndescription: A\norder: 1\n','utf-8');c2.write_text('title: B\ndescription: B\norder: 2\n','utf-8')
+            p1=projects/'a.yaml';p2=projects/'b.yaml';p1.write_text('repo: o/a\ntitle: A\ndescription: A\norder: 1\n','utf-8');p2.write_text('repo: o/b\ntitle: B\ndescription: B\norder: 2\n','utf-8')
+            reorder_collections(root,[c2,c1]);self.assertEqual(load_collection_snapshot(c2)['order'],1);self.assertEqual(load_collection_snapshot(c1)['order'],2)
+            reorder_projects(root,[p2,p1]);self.assertEqual(load_project_snapshot(p2)['order'],1);self.assertEqual(load_project_snapshot(p1)['order'],2)
     def test_category_create_rename_delete_migrates_articles(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);loose=root/'src/content/blog/loose/index.md';book=root/'src/content/blog/book/index.md'

@@ -178,23 +178,25 @@ def content_catalog(repo_root:Path)->dict:
     directory=repo_root/'src/content/collections'
     for file in directory.glob('*.yaml') if directory.exists() else []:
         try:
-            data=yaml.safe_load(file.read_text('utf-8')) or {};collections.append({'id':file.stem,'title':data.get('title',file.stem),'order':data.get('order',9999)})
+            data=yaml.safe_load(file.read_text('utf-8')) or {};collections.append({'id':file.stem,'path':file,'title':data.get('title',file.stem),'description':data.get('description',''),'order':data.get('order',9999),'data':data})
         except yaml.YAMLError:continue
     blog=repo_root/'src/content/blog'
     if blog.exists():
         for file in sorted([*blog.glob('*/index.md'),*blog.glob('*/index.mdx')]):
-            data,_=split_frontmatter(file.read_text('utf-8'));category=str(data.get('category','')).strip()
+            data,_=split_frontmatter(file.read_text('utf-8'));category=str(data.get('category','')).strip() or '未分类'
             if category and not data.get('collection'):categories.add(category)
             tags.update(str(tag).strip() for tag in data.get('tags',[]) if str(tag).strip())
             articles.append({'path':file,'slug':file.parent.name,'title':data.get('title',file.parent.name),'category':category,'tags':data.get('tags',[]),'collection':data.get('collection'),'order':data.get('collectionOrder')})
     project_dir=repo_root/'src/content/projects'
     for file in sorted(project_dir.glob('*.yaml')) if project_dir.exists() else []:
         try:
-            data=yaml.safe_load(file.read_text('utf-8')) or {};projects.append({'id':file.stem,'path':file,'title':data.get('title',file.stem),'repo':data.get('repo',''),'topics':data.get('topics',[]),'data':data})
+            data=yaml.safe_load(file.read_text('utf-8')) or {};projects.append({'id':file.stem,'path':file,'title':data.get('title',file.stem),'repo':data.get('repo',''),'topics':data.get('topics',[]),'order':data.get('order',9999),'data':data})
         except yaml.YAMLError:continue
-    categories.update(load_category_registry(repo_root))
+    categories.update(load_category_registry(repo_root));categories.add('未分类')
     collections.sort(key=lambda item:(item['order'],item['title']))
-    return {'collections':collections,'projects':projects,'categories':sorted(categories),'tags':sorted(tags),'articles':articles}
+    projects.sort(key=lambda item:(item['order'],item['title']))
+    category_list=sorted(categories,key=lambda name:(name!='未分类',name))
+    return {'collections':collections,'projects':projects,'categories':category_list,'tags':sorted(tags),'articles':articles}
 
 def category_registry_path(repo_root:Path)->Path:return repo_root/'src/data/categories.json'
 
@@ -236,6 +238,47 @@ def reorder_collection(repo_root:Path,collection_id:str,ordered_files:list[Path]
         if data.get('collection')!=collection_id:raise ValueError(f'{path.parent.name} 不属于合集 {collection_id}')
         data['collectionOrder']=number;atomic_save(path,serialize_frontmatter(data,body),repo_root)
 
+def move_article(repo_root:Path,article_file:Path,destination_kind:str,destination_id:str,ordered_files:list[Path]|None=None)->None:
+    data,body=split_frontmatter(article_file.read_text('utf-8'))
+    old_collection=data.get('collection')
+    if destination_kind=='collection':
+        target=repo_root/'src/content/collections'/f'{destination_id}.yaml'
+        if not target.exists():raise ValueError(f'合集不存在：{destination_id}')
+        data['collection']=destination_id;data['category']='未分类';data['collectionOrder']=1
+    elif destination_kind=='category':
+        data.pop('collection',None);data.pop('collectionOrder',None);data['category']=destination_id.strip() or '未分类'
+    else:raise ValueError('文章只能移动到分类或合集。')
+    atomic_save(article_file,serialize_frontmatter(data,body),repo_root)
+    if old_collection and (destination_kind!='collection' or old_collection!=destination_id):
+        remaining=[]
+        for path in sorted([*(repo_root/'src/content/blog').glob('*/index.md'),*(repo_root/'src/content/blog').glob('*/index.mdx')]):
+            old_data,_=split_frontmatter(path.read_text('utf-8'))
+            if old_data.get('collection')==old_collection:remaining.append((int(old_data.get('collectionOrder',9999)),path))
+        reorder_collection(repo_root,old_collection,[path for _,path in sorted(remaining)])
+    if destination_kind=='collection':
+        ordered=list(ordered_files or [])
+        if article_file not in ordered:ordered.append(article_file)
+        reorder_collection(repo_root,destination_id,ordered)
+
+def reorder_collections(repo_root:Path,ordered_files:list[Path])->None:
+    for number,path in enumerate(ordered_files,1):
+        data=load_collection_snapshot(path);data['order']=number;save_collection_snapshot(path,data,repo_root)
+
+def reorder_projects(repo_root:Path,ordered_files:list[Path])->None:
+    for number,path in enumerate(ordered_files,1):
+        data=load_project_snapshot(path);data['order']=number;save_project_snapshot(path,data,repo_root)
+
+def load_collection_snapshot(path:Path)->dict:
+    data=yaml.safe_load(path.read_text('utf-8')) or {}
+    if not data.get('title') or not data.get('description'):raise ValueError('合集标题和简介不能为空。')
+    return data
+
+def save_collection_snapshot(path:Path,data:dict,repo_root:Path)->None:
+    clean={key:value for key,value in dict(data).items() if value not in (None,'')}
+    if not str(clean.get('title','')).strip() or not str(clean.get('description','')).strip():raise ValueError('合集标题和简介不能为空。')
+    clean['order']=max(1,int(clean.get('order',1)))
+    atomic_save(path,yaml.safe_dump(clean,allow_unicode=True,sort_keys=False,default_flow_style=False),repo_root)
+
 def git_content_changes(repo_root:Path,runner:Callable=subprocess.run)->dict:
     git=resolve_command('git');articles={};collections={};projects={};files=[]
     if not git:return {'articles':articles,'collections':collections,'projects':projects,'files':files}
@@ -272,6 +315,14 @@ def trash_article(article_file:Path,repo_root:Path)->Path:
     target=trash/f"{article_dir.name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}";counter=2
     while target.exists():target=trash/f'{target.name}-{counter}';counter+=1
     shutil.move(str(article_dir),target);return target
+
+def ensure_mdx_article(article_file:Path,repo_root:Path)->Path:
+    if article_file.suffix.lower()=='.mdx':return article_file
+    if article_file.suffix.lower()!='.md':raise ValueError('项目卡片只能插入 Markdown 或 MDX 文章。')
+    if not article_file.resolve().is_relative_to((repo_root/'src/content/blog').resolve()):raise ValueError('只能转换博客文章。')
+    target=article_file.with_suffix('.mdx')
+    if target.exists():raise FileExistsError(f'MDX 文件已存在：{target.name}')
+    os.replace(article_file,target);return target
 
 def article_assets(article_file:Path,repo_root:Path|None=None)->list[Path]:
     source=article_file.read_text('utf-8');paths=[article_file];data,_=split_frontmatter(source)
