@@ -4,102 +4,80 @@ const titleLines = siteConfig.hero.title.split('\n');
 ---
 <section class="hero" data-prism-hero>
   <div class="hero-sticky">
-    <div class="technical-grid" aria-hidden="true"></div>
-    <div class="hero-shell shell">
-      <p class="eyebrow"><span aria-hidden="true"></span>{siteConfig.hero.eyebrow}</p>
+    <div class="hero-inner shell">
+      <p class="eyebrow"><span>PRISM NOTES</span><i aria-hidden="true"></i><span>棱镜笔记</span></p>
 
-      <div class="composition">
-        <div class="prism-scene" data-prism-stage role="img" aria-label="与标题融合并随滚动折射的三维棱镜">
-          <div class="halo"></div>
-          <div class="orbit orbit-a"></div>
-          <div class="orbit orbit-b"></div>
-          <svg class="prism" viewBox="0 0 560 500">
+      <div class="title-stage">
+        <div class="prism-stage" data-prism-stage role="img" aria-label="一束光穿过透明三维棱镜并被折射为光谱">
+          <svg viewBox="0 0 760 420" aria-hidden="true">
             <defs>
-              <linearGradient id="prism-left" x1="0" y1="0" x2="1" y2="1"><stop stop-color="var(--spectrum-blue)" stop-opacity=".7"/><stop offset="1" stop-color="var(--paper)" stop-opacity=".12"/></linearGradient>
-              <linearGradient id="prism-right" x1="1" y1="0" x2="0" y2="1"><stop stop-color="var(--spectrum-red)" stop-opacity=".55"/><stop offset="1" stop-color="var(--spectrum-cyan)" stop-opacity=".12"/></linearGradient>
-              <linearGradient id="spectrum-line" x1="0" y1="0" x2="1" y2="0"><stop stop-color="var(--spectrum-blue)"/><stop offset=".52" stop-color="var(--spectrum-cyan)"/><stop offset="1" stop-color="var(--spectrum-red)"/></linearGradient>
+              <linearGradient id="glass-a" x1="0" y1="0" x2="1" y2="1"><stop stop-color="var(--ink)" stop-opacity=".055"/><stop offset="1" stop-color="var(--spectrum-blue)" stop-opacity=".14"/></linearGradient>
+              <linearGradient id="glass-b" x1="1" y1="0" x2="0" y2="1"><stop stop-color="var(--paper)" stop-opacity=".72"/><stop offset="1" stop-color="var(--spectrum-cyan)" stop-opacity=".11"/></linearGradient>
+              <linearGradient id="spectrum" x1="0" y1="0" x2="1" y2="0"><stop stop-color="var(--spectrum-blue)"/><stop offset=".5" stop-color="var(--spectrum-cyan)"/><stop offset="1" stop-color="var(--spectrum-red)"/></linearGradient>
             </defs>
-            <path class="face face-left" d="M280 46 87 410 280 329Z" fill="url(#prism-left)"/>
-            <path class="face face-right" d="M280 46 473 410 280 329Z" fill="url(#prism-right)"/>
-            <path class="face face-base" d="M87 410h386l-193-81Z"/>
-            <path class="wire" d="M280 46 473 410H87L280 46Zm0 0v283m193 81-193-81-193 81"/>
-            <g class="rays">
-              <path d="M22 282 280 242 538 232"/>
-              <path d="M22 294 280 252 538 257"/>
-              <path d="M22 306 280 262 538 282"/>
+            <path class="incident" d="M28 210 310 210"/>
+            <g class="glass">
+              <path d="m380 38 154 304-154-78Z" fill="url(#glass-a)"/>
+              <path d="m380 38-154 304 154-78Z" fill="url(#glass-b)"/>
+              <path d="M226 342h308l-154-78Z" class="base"/>
+              <path d="M380 38 534 342H226L380 38Zm0 0v226m154 78-154-78-154 78" class="wire"/>
+            </g>
+            <g class="spectrum-rays">
+              <path d="M380 210 732 164"/>
+              <path d="M380 210 732 210"/>
+              <path d="M380 210 732 256"/>
             </g>
           </svg>
-          <div class="axis axis-x">X · REFRACTION</div>
-          <div class="axis axis-y">Y · λ 450—700</div>
         </div>
 
-        <h1>{titleLines.map((line, index) => <span class:list={['title-line', `line-${index + 1}`]}>{line}</span>)}</h1>
+        <h1>{titleLines.map((line) => <span>{line}</span>)}</h1>
       </div>
 
-      <div class="hero-foot">
+      <div class="hero-bottom">
         <p>{siteConfig.hero.introduction}</p>
-        <nav class="hero-actions" aria-label="首页快捷入口">
-          <a class="primary-action" href="/blog/">进入合集 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" /></svg></a>
+        <div class="actions">
+          <a href="/blog/">进入合集 <span aria-hidden="true">↘</span></a>
           <a href="/archive/">浏览归档</a>
-        </nav>
+        </div>
       </div>
-
-      <div class="hero-index" aria-hidden="true"><span>PRISM NOTES</span><i></i><span>SCROLL · 01</span></div>
     </div>
+    <div class="scroll-mark" aria-hidden="true"><span></span><b>SCROLL</b></div>
   </div>
 </section>
 
 <script>
   const hero=document.querySelector<HTMLElement>('[data-prism-hero]');
-  const stage=hero?.querySelector<HTMLElement>('[data-prism-stage]');
   const reduce=matchMedia('(prefers-reduced-motion: reduce)');
-  const finePointer=matchMedia('(pointer: fine)');
-  let pointerX=0,pointerY=0,frame=0;
+  let frame=0;
   const render=()=>{
     frame=0;if(!hero||reduce.matches)return;
     const rect=hero.getBoundingClientRect();
-    const travel=Math.max(1,rect.height-innerHeight);
-    const progress=Math.max(0,Math.min(1,-rect.top/travel));
-    hero.style.setProperty('--scroll-y',`${progress*-72}px`);
-    hero.style.setProperty('--scroll-rotate',`${progress*34}deg`);
-    hero.style.setProperty('--scroll-tilt',`${progress*-7}deg`);
-    hero.style.setProperty('--scroll-scale',String(1+progress*.16));
-    hero.style.setProperty('--copy-y',`${progress*-24}px`);
-    hero.style.setProperty('--copy-opacity',String(1-progress*.62));
-    hero.style.setProperty('--ray-shift',`${progress*52}px`);
-    stage?.style.setProperty('--pointer-x',`${pointerX*5}deg`);
-    stage?.style.setProperty('--pointer-y',`${pointerY*-4}deg`);
+    const distance=Math.max(1,rect.height-innerHeight);
+    const progress=Math.max(0,Math.min(1,-rect.top/distance));
+    hero.style.setProperty('--prism-y',`${progress*-38}px`);
+    hero.style.setProperty('--prism-turn',`${progress*20}deg`);
+    hero.style.setProperty('--prism-tilt',`${progress*-4}deg`);
+    hero.style.setProperty('--prism-scale',String(1+progress*.08));
+    hero.style.setProperty('--ray-scale',String(.2+progress*.8));
+    hero.style.setProperty('--copy-y',`${progress*-18}px`);
+    hero.style.setProperty('--copy-opacity',String(1-progress*.5));
   };
   const schedule=()=>{if(!frame)frame=requestAnimationFrame(render)};
-  const move=(event:PointerEvent)=>{
-    if(!hero||reduce.matches||!finePointer.matches)return;
-    const rect=hero.getBoundingClientRect();
-    pointerX=Math.max(-1,Math.min(1,(event.clientX-rect.left)/rect.width*2-1));
-    pointerY=Math.max(-1,Math.min(1,(event.clientY-rect.top)/Math.min(rect.height,innerHeight)*2-1));schedule();
-  };
-  const reset=()=>{pointerX=0;pointerY=0;schedule()};
-  addEventListener('scroll',schedule,{passive:true});addEventListener('resize',schedule,{passive:true});
-  hero?.addEventListener('pointermove',move,{passive:true});hero?.addEventListener('pointerleave',reset,{passive:true});
-  reduce.addEventListener('change',schedule);schedule();
+  addEventListener('scroll',schedule,{passive:true});addEventListener('resize',schedule,{passive:true});reduce.addEventListener('change',schedule);schedule();
 </script>
 
 <style>
-  .hero{--scroll-y:0px;--scroll-rotate:0deg;--scroll-tilt:0deg;--scroll-scale:1;--copy-y:0px;--copy-opacity:1;--ray-shift:0px;position:relative;height:145dvh;min-height:58rem;border-bottom:1px solid var(--soft-line);background:var(--paper)}
-  .hero-sticky{position:sticky;top:66px;height:calc(100dvh - 66px);min-height:42rem;display:grid;place-items:center;overflow:hidden;isolation:isolate}
-  .technical-grid{position:absolute;inset:0;z-index:-3;background-image:linear-gradient(color-mix(in srgb,var(--line-color) 55%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--line-color) 55%,transparent) 1px,transparent 1px);background-size:clamp(36px,4vw,64px) clamp(36px,4vw,64px);mask-image:radial-gradient(ellipse 62% 72% at 50% 47%,#000 10%,transparent 76%);opacity:.5;transform:translate3d(0,calc(var(--scroll-y)*-.18),0)}
-  .hero-shell{width:100%;display:grid;justify-items:center;align-content:center;padding-block:clamp(2rem,5vh,4rem);text-align:center}
-  .eyebrow{z-index:5;display:flex;align-items:center;justify-content:center;gap:.65rem;margin:0 0 clamp(1.5rem,3vh,2.5rem);font:500 .64rem/1.5 var(--font-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-ink);transform:translate3d(0,var(--copy-y),0);opacity:var(--copy-opacity)}.eyebrow span{width:.42rem;height:.42rem;border:1px solid var(--spectrum-cyan);border-radius:50%;box-shadow:0 0 12px color-mix(in srgb,var(--spectrum-cyan) 55%,transparent)}
-  .composition{position:relative;width:min(100%,72rem);min-height:clamp(19rem,48vh,34rem);display:grid;place-items:center;perspective:1200px;transform-style:preserve-3d}
-  h1{position:relative;z-index:3;width:100%;margin:0;display:grid;gap:clamp(3.5rem,10vh,7.2rem);font-size:clamp(3.15rem,7.5vw,7.7rem);font-weight:500;line-height:.9;letter-spacing:-.058em;text-wrap:balance;pointer-events:none;transform:translate3d(0,var(--copy-y),55px);opacity:var(--copy-opacity)}
-  .title-line{display:block}.line-1{transform:translateX(clamp(-2rem,-3vw,-.4rem))}.line-2{transform:translateX(clamp(.4rem,3vw,2rem));background:linear-gradient(95deg,var(--ink) 20%,var(--spectrum-blue) 50%,var(--ink) 80%);background-clip:text;color:transparent}
-  .prism-scene{--pointer-x:0deg;--pointer-y:0deg;position:absolute;inset:0;z-index:2;width:min(55vw,34rem);aspect-ratio:1.12;margin:auto;transform-style:preserve-3d;transform:translate3d(0,var(--scroll-y),20px) rotateX(calc(-4deg + var(--pointer-y) + var(--scroll-tilt))) rotateY(calc(var(--pointer-x) + var(--scroll-rotate))) scale(var(--scroll-scale));will-change:transform}
-  .prism{position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 2rem 2rem color-mix(in srgb,var(--spectrum-blue) 15%,transparent))}.face{opacity:.54}.face-base{fill:color-mix(in srgb,var(--spectrum-cyan) 18%,transparent)}.wire{fill:none;stroke:color-mix(in srgb,var(--ink) 76%,transparent);stroke-width:1.15}.rays{fill:none;stroke:url(#spectrum-line);stroke-width:1.2;stroke-dasharray:5 9;transform:translateX(var(--ray-shift));opacity:.72}
-  .halo{position:absolute;inset:20%;border-radius:50%;background:color-mix(in srgb,var(--spectrum-blue) 11%,transparent);filter:blur(42px);transform:translateZ(-45px)}
-  .orbit{position:absolute;inset:8%;border:1px solid color-mix(in srgb,var(--spectrum-blue) 33%,transparent);border-radius:50%;transform-style:preserve-3d}.orbit::after{content:'';position:absolute;left:14%;top:10%;width:.4rem;height:.4rem;border-radius:50%;background:var(--spectrum-cyan);box-shadow:0 0 12px var(--spectrum-cyan)}.orbit-a{transform:translateZ(-12px) rotateX(69deg) rotateZ(calc(18deg + var(--scroll-rotate)))}.orbit-b{inset:18%;border-color:color-mix(in srgb,var(--spectrum-red) 30%,transparent);transform:translateZ(18px) rotateY(70deg) rotateZ(calc(-10deg - var(--scroll-rotate)))}
-  .axis{position:absolute;font:500 .52rem var(--font-mono);letter-spacing:.12em;color:var(--muted-ink)}.axis-x{left:-2%;bottom:14%}.axis-y{right:0;top:10%;writing-mode:vertical-rl}
-  .hero-foot{z-index:5;width:min(100%,48rem);display:grid;grid-template-columns:minmax(0,1.4fr) auto;align-items:center;gap:2rem;margin-top:clamp(1.1rem,2vh,2rem);text-align:left;transform:translate3d(0,var(--copy-y),0);opacity:var(--copy-opacity)}.hero-foot>p{margin:0;color:var(--muted-ink);font-size:clamp(.96rem,1.5vw,1.08rem);line-height:1.65}.hero-actions{display:flex;align-items:center;gap:.5rem}.hero-actions a{min-height:46px;display:inline-flex;align-items:center;justify-content:center;padding:.55rem .9rem;text-decoration:none;font:500 .78rem var(--font-sans);white-space:nowrap;transition:transform .2s ease,color .2s ease,background .2s ease}.hero-actions a:hover{transform:translateY(-2px)}.primary-action{gap:.6rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper)}.primary-action svg{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:1.5}
-  .hero-index{position:absolute;left:var(--shell-pad);right:var(--shell-pad);bottom:1rem;display:flex;align-items:center;gap:.8rem;font:500 .52rem var(--font-sans);letter-spacing:.14em;color:var(--muted-ink);opacity:calc(.3 + var(--copy-opacity)*.7)}.hero-index i{flex:1;border-top:1px solid var(--soft-line)}
-  @media(max-width:760px){.hero{height:128dvh;min-height:48rem}.hero-sticky{min-height:38rem}.composition{min-height:23rem}.prism-scene{width:min(88vw,29rem)}h1{gap:5rem;font-size:clamp(3.1rem,13vw,5.2rem)}.line-1,.line-2{transform:none}.hero-foot{grid-template-columns:1fr;justify-items:center;gap:1rem;text-align:center}.hero-actions{justify-content:center}.axis{display:none}}
-  @media(max-width:430px){.eyebrow{max-width:18rem}.composition{min-height:21rem}h1{gap:4.5rem}.hero-foot>p{max-width:21rem}.hero-actions a{padding-inline:.7rem}.hero-index{display:none}}
-  @media(prefers-reduced-motion:reduce){.hero{height:auto;min-height:calc(100dvh - 66px)}.hero-sticky{position:relative;top:0}.technical-grid,.eyebrow,h1,.hero-foot,.prism-scene{transform:none!important;opacity:1!important}.rays{transform:none}.orbit-a{transform:translateZ(-12px) rotateX(69deg) rotateZ(18deg)}.orbit-b{transform:translateZ(18px) rotateY(70deg) rotateZ(-10deg)}}
+  .hero{--prism-y:0px;--prism-turn:0deg;--prism-tilt:0deg;--prism-scale:1;--ray-scale:.2;--copy-y:0px;--copy-opacity:1;position:relative;height:136dvh;min-height:52rem;border-bottom:1px solid var(--soft-line);background:var(--paper)}
+  .hero-sticky{position:sticky;top:66px;height:calc(100dvh - 66px);min-height:40rem;display:grid;place-items:center;overflow:hidden;isolation:isolate}
+  .hero-sticky::before{content:'';position:absolute;inset:8% 18%;z-index:-1;background:radial-gradient(circle,color-mix(in srgb,var(--spectrum-blue) 5%,transparent),transparent 66%);pointer-events:none}
+  .hero-inner{width:100%;display:grid;justify-items:center;align-content:center;padding-block:clamp(2.5rem,7vh,5rem)}
+  .eyebrow{width:min(100%,54rem);display:flex;align-items:center;gap:1rem;margin:0 0 clamp(2rem,5vh,4rem);font:500 .6rem/1 var(--font-sans);letter-spacing:.17em;color:var(--muted-ink);transform:translate3d(0,var(--copy-y),0);opacity:var(--copy-opacity)}.eyebrow i{flex:1;border-top:1px solid var(--soft-line)}
+  .title-stage{position:relative;width:min(100%,70rem);min-height:clamp(19rem,48vh,31rem);display:grid;place-items:center;perspective:1100px;transform-style:preserve-3d}
+  h1{position:relative;z-index:2;width:100%;margin:0;display:grid;gap:clamp(3.7rem,10vh,6.8rem);text-align:center;font-size:clamp(3.3rem,7.9vw,8rem);font-weight:500;line-height:.88;letter-spacing:-.06em;text-wrap:balance;transform:translate3d(0,var(--copy-y),60px);opacity:var(--copy-opacity);pointer-events:none}h1 span{display:block}
+  .prism-stage{position:absolute;inset:0;z-index:1;width:min(78vw,47rem);height:auto;aspect-ratio:760/420;margin:auto;transform-style:preserve-3d;transform:translate3d(0,var(--prism-y),0) rotateX(calc(-2deg + var(--prism-tilt))) rotateY(var(--prism-turn)) scale(var(--prism-scale));will-change:transform}.prism-stage svg{width:100%;height:100%;overflow:visible}.glass{transform-origin:380px 215px;filter:drop-shadow(0 1.6rem 1.8rem color-mix(in srgb,var(--ink) 8%,transparent))}.base{fill:color-mix(in srgb,var(--spectrum-cyan) 7%,transparent)}.wire{fill:none;stroke:color-mix(in srgb,var(--ink) 72%,transparent);stroke-width:1}.incident{fill:none;stroke:color-mix(in srgb,var(--ink) 52%,transparent);stroke-width:1}.spectrum-rays{fill:none;stroke:url(#spectrum);stroke-width:1.15;transform-origin:380px 210px;transform:scaleX(var(--ray-scale));opacity:.62}
+  .hero-bottom{width:min(100%,54rem);display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:3rem;margin-top:clamp(1.5rem,4vh,3rem);transform:translate3d(0,var(--copy-y),0);opacity:var(--copy-opacity)}.hero-bottom>p{max-width:32rem;margin:0;color:var(--muted-ink);font-size:clamp(.96rem,1.5vw,1.08rem);line-height:1.7}.actions{display:flex;align-items:center;gap:1.5rem}.actions a{min-height:44px;display:inline-flex;align-items:center;gap:.55rem;font:500 .76rem var(--font-sans);text-decoration:none}.actions a:first-child{border-bottom:1px solid var(--ink)}.actions a span{font-size:1rem;transition:transform .2s ease}.actions a:hover span{transform:translate(2px,2px)}
+  .scroll-mark{position:absolute;right:clamp(1rem,3vw,2.5rem);bottom:1.3rem;display:flex;align-items:center;gap:.65rem;color:var(--muted-ink);writing-mode:vertical-rl}.scroll-mark span{height:2.5rem;border-left:1px solid currentColor}.scroll-mark b{font:500 .52rem var(--font-sans);letter-spacing:.16em}
+  @media(max-width:760px){.hero{height:124dvh;min-height:46rem}.hero-sticky{min-height:37rem}.eyebrow{margin-bottom:1.5rem}.title-stage{min-height:22rem}.prism-stage{width:min(112vw,39rem)}h1{gap:5rem;font-size:clamp(3.15rem,13.2vw,5.5rem)}.hero-bottom{grid-template-columns:1fr;justify-items:center;gap:1rem;text-align:center}.actions{gap:1.2rem}.scroll-mark{display:none}}
+  @media(max-width:430px){.eyebrow{font-size:.53rem}.title-stage{min-height:20rem}h1{gap:4.5rem}.prism-stage{width:118vw}.hero-bottom>p{max-width:21rem}}
+  @media(prefers-reduced-motion:reduce){.hero{height:auto;min-height:calc(100dvh - 66px)}.hero-sticky{position:relative;top:0}.eyebrow,h1,.hero-bottom,.prism-stage{transform:none!important;opacity:1!important}.spectrum-rays{transform:scaleX(1)}}
 </style>
