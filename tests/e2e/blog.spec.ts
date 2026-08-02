@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-test('首页提供科技感三维 Hero 与完整主导航', async ({ page }) => {
+test('首页提供粒子化莫比乌斯 Hero 与完整主导航', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /把复杂世界/ })).toBeVisible();
-  await expect(page.getByRole('img', { name: /三维棱镜/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: /莫比乌斯环/ })).toBeVisible();
   await expect(page.locator('[data-prism-stage]')).toHaveCount(1);
+  await expect(page.locator('[data-mobius-canvas]')).toBeVisible();
   await expect(page.getByRole('link', { name: '进入合集' })).toBeVisible();
   await expect(page.getByRole('link', { name: /浏览归档/ })).toBeVisible();
   for (const label of ['首页', '合集', '分类', '归档', '项目', '关于']) {
@@ -23,7 +24,7 @@ test('主题切换持久化且减少动态效果时 Hero 静止', async ({ page 
   await expect.poll(() => page.evaluate(() => localStorage.getItem('prism-theme'))).toMatch(/light|dark/);
 });
 
-test('Hero 的标题与棱镜共享滚动驱动的空间舞台', async ({ page }) => {
+test('Hero 的标题与莫比乌斯环共享滚动驱动的空间舞台', async ({ page }) => {
   await page.goto('/');
   const stage = page.locator('[data-prism-stage]');
   const before = await stage.evaluate((element) => getComputedStyle(element).transform);
