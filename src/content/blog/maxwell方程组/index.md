@@ -30,3 +30,7 @@ $$
 \displaystyle \oint_C \mathbf{B} \cdot d\mathbf{l} = \mu_0 I + \mu_0\varepsilon_0 \dfrac{d}{dt}\int_S \mathbf{E} \cdot d\mathbf{A}
 \end{cases}
 $$
+
+$$
+\int_\infty^\infty
+$$
