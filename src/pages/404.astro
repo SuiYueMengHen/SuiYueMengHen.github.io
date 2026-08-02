@@ -1,5 +1,5 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
-<BaseLayout title="页面未找到"><section class="not-found shell"><p class="error">404</p><h1>页面未找到</h1><p><em>Quod quaeris, hic non est.</em></p><p>你访问的页面可能已经移动，或从未被写下。</p><a class="button button--ghost" href="/">返回首页</a></section></BaseLayout>
+<BaseLayout title="页面未找到"><section class="not-found shell" data-preview-kind="not-found"><p class="error">404</p><h1>页面未找到</h1><p><em>Quod quaeris, hic non est.</em></p><p>你访问的页面可能已经移动，或从未被写下。</p><a class="button button--ghost" href="/">返回首页</a></section></BaseLayout>
 <style>.not-found{max-width:var(--measure);min-height:calc(100dvh - 66px);display:grid;place-content:center;text-align:center;padding-block:5rem}.error{margin:0;font-size:clamp(5rem,18vw,10rem);line-height:1;font-weight:500}.not-found h1{margin:1rem 0 .5rem;font-size:2.2rem;font-weight:500}.not-found .button{justify-self:center;margin-top:1.5rem}</style>

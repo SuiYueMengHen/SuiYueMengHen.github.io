@@ -21,3 +21,14 @@ export function projectPreviewVersion(data: Record<string, any>): string {
     text(data.cover), text(data.coverAlt), flag(data.featured), text(data.order),
   ]);
 }
+
+export function collectionPreviewVersion(data: Record<string, any>): string {
+  return digest([
+    text(data.title), text(data.description), text(data.subtitle), text(data.volume),
+    text(data.status), flag(data.featured), text(data.order), text(data.cover), text(data.coverAlt),
+  ]);
+}
+
+export function categoryPreviewVersion(names: string[]): string {
+  return digest([[...new Set(names.map(text).filter(Boolean))].sort().join('\u001e')]);
+}

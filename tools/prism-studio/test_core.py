@@ -1,14 +1,16 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import article_preview_version,atomic_save,article_assets,content_catalog,copy_images,create_article,create_category,create_collection,delete_category,delete_project_snapshot,delete_trash_entries,ensure_mdx_article,execute_publish,git_content_changes,import_project,list_trash,load_collection_snapshot,load_project_snapshot,migrate_category,move_article,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,reorder_collections,reorder_projects,restore_trash_entry,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
+from core import article_preview_version,atomic_save,article_assets,category_preview_version,collection_preview_version,content_catalog,copy_images,create_article,create_category,create_collection,delete_category,delete_project_snapshot,delete_trash_entries,ensure_mdx_article,execute_publish,git_content_changes,import_project,list_trash,load_collection_snapshot,load_project_snapshot,migrate_category,move_article,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,reorder_collections,reorder_projects,restore_trash_entry,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
 
 class CoreTests(unittest.TestCase):
     def test_preview_fingerprints_match_web_runtime(self):
-        article={'title':'棱镜','description':'清晰','category':'写作','tags':['A','中文'],'collection':None,'collectionOrder':None,'featured':True,'draft':False,'canonical':None};project={'repo':'o/r','title':'工具','description':'说明','topics':['cli','mac'],'homepage':None,'cover':None,'coverAlt':None,'featured':False,'order':2}
+        article={'title':'棱镜','description':'清晰','category':'写作','tags':['A','中文'],'collection':None,'collectionOrder':None,'featured':True,'draft':False,'canonical':None};project={'repo':'o/r','title':'工具','description':'说明','topics':['cli','mac'],'homepage':None,'cover':None,'coverAlt':None,'featured':False,'order':2};collection={'title':'复分析','description':'简介','subtitle':'Complex','volume':'I','status':'ongoing','featured':False,'order':1,'cover':None,'coverAlt':None}
         self.assertEqual(article_preview_version(article,'正文\r\n'),'6634a4746ee55afa94e4b6aa230dc0031a95e4cfd83b716b788352fba1b8e732');self.assertEqual(project_preview_version(project),'6d6f99f07afa98739f4307b830b10663d9c5d75eb99aa562913b08cc4d736482')
+        self.assertEqual(collection_preview_version(collection),'c0948ad0336293407cdaa703b42e719b34ccb52b3357436eb74c834652237cd6')
+        self.assertEqual(category_preview_version(['微积分','未分类','微积分']),'00fd32a60ab95d1a2edb4d9e6de773017ee1d7b1df07799015efec7ad26a9c77')
         self.assertNotEqual(article_preview_version(article,'正文'),article_preview_version({**article,'showSideToc':False},'正文'))
     def test_frontmatter_roundtrip(self):
         data={'title':'棱镜','tags':['写作','工具'],'draft':True};source=serialize_frontmatter(data,'正文\n');parsed,body=split_frontmatter(source);self.assertEqual(parsed['tags'],data['tags']);self.assertEqual(body,'正文\n')
@@ -106,6 +108,12 @@ class CoreTests(unittest.TestCase):
             move_article(root,first,'collection','book',[first]);data,_=split_frontmatter(first.read_text('utf-8'));self.assertEqual(data['collection'],'book');self.assertEqual(data['category'],'未分类');self.assertEqual(data['collectionOrder'],1)
             move_article(root,second,'collection','book',[first,second]);self.assertEqual(split_frontmatter(second.read_text('utf-8'))[0]['collectionOrder'],2)
             move_article(root,first,'category','技术');data,_=split_frontmatter(first.read_text('utf-8'));self.assertNotIn('collection',data);self.assertEqual(data['category'],'技术');self.assertEqual(split_frontmatter(second.read_text('utf-8'))[0]['collectionOrder'],1)
+    def test_move_article_accepts_stale_drag_order_and_chinese_collection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);collections=root/'src/content/collections';collections.mkdir(parents=True);(collections/'线性代数.yaml').write_text('title: 线性代数\ndescription: 线性代数合集\norder: 1\n','utf-8')
+            article=root/'src/content/blog/矩阵与方程组/index.md';article.parent.mkdir(parents=True);article.write_text(serialize_frontmatter({'title':'矩阵与方程组','description':'演示','category':'未分类','tags':['待整理']},'正文'),'utf-8')
+            stale=root/'src/content/blog/already-deleted/index.md';move_article(root,article,'collection','线性代数',[stale,article,article])
+            data,_=split_frontmatter(article.read_text('utf-8'));self.assertEqual(data['collection'],'线性代数');self.assertEqual(data['collectionOrder'],1);self.assertEqual(data['category'],'未分类')
     def test_reorder_collection_and_project_lists(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);collections=root/'src/content/collections';projects=root/'src/content/projects';collections.mkdir(parents=True);projects.mkdir(parents=True)
@@ -119,7 +127,7 @@ class CoreTests(unittest.TestCase):
             for path,collection in ((loose,None),(book,'volume')):
                 path.parent.mkdir(parents=True,exist_ok=True);path.write_text(serialize_frontmatter({'title':path.parent.name,'category':'旧分类','collection':collection},'正文'),'utf-8')
             create_category(root,'空分类');self.assertIn('空分类',content_catalog(root)['categories'])
-            migrate_category(root,'旧分类','新分类');self.assertEqual(split_frontmatter(loose.read_text('utf-8'))[0]['category'],'新分类');self.assertEqual(split_frontmatter(book.read_text('utf-8'))[0]['category'],'新分类')
+            migrate_category(root,'旧分类','新分类');self.assertEqual(split_frontmatter(loose.read_text('utf-8'))[0]['category'],'新分类');self.assertEqual(split_frontmatter(book.read_text('utf-8'))[0]['category'],'旧分类')
             delete_category(root,'新分类');self.assertEqual(split_frontmatter(loose.read_text('utf-8'))[0]['category'],'未分类');self.assertNotIn('新分类',content_catalog(root)['categories'])
     def test_git_change_mapping_marks_articles_and_collections(self):
         with tempfile.TemporaryDirectory() as folder:

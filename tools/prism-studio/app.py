@@ -16,7 +16,7 @@ from PySide6.QtCore import QPoint, QProcess, QProcessEnvironment, QRect, QTimer,
 from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QImage, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkProxy, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QInputDialog, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
     QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox,
@@ -31,7 +31,7 @@ from core import (
     article_assets, article_preview_version, atomic_save, command_environment, content_catalog, copy_images, create_article, create_collection,
     create_category, delete_category, delete_project_snapshot, delete_trash_entries, ensure_mdx_article, environment_status, execute_publish, find_port,
     git_content_changes, import_project, list_trash, load_collection_snapshot, load_project_snapshot, migrate_category, move_article, normalize_repo, pages_site_url, preview_route, restore_trash_entry,
-    project_preview_version, reorder_collection, reorder_collections, reorder_projects, resolve_command, save_collection_snapshot, save_project_snapshot, serialize_frontmatter, split_frontmatter, trash_article,
+    category_preview_version, collection_preview_version, project_preview_version, reorder_collection, reorder_collections, reorder_projects, resolve_command, save_collection_snapshot, save_project_snapshot, serialize_frontmatter, split_frontmatter, trash_article,
     wait_for_pages_deployment,
 )
 
@@ -254,27 +254,64 @@ class CoverCropDialog(QDialog):
 class ContentTree(QTreeWidget):
     articleMoved = Signal(str, str, str, list)
     orderChanged = Signal(str, list)
+    dropRejected = Signal(str)
 
     def __init__(self):
-        super().__init__();self.setHeaderHidden(True);self.setIndentation(16);self.setAnimated(True);self.setDragDropMode(QTreeWidget.InternalMove);self.setDefaultDropAction(Qt.MoveAction);self.setSelectionMode(QTreeWidget.SingleSelection);self.setDropIndicatorShown(True)
+        super().__init__();self._drag_payload=None;self._last_article_target=None;self.setHeaderHidden(True);self.setIndentation(16);self.setAnimated(True);self.setDragDropMode(QTreeWidget.InternalMove);self.setDefaultDropAction(Qt.MoveAction);self.setSelectionMode(QTreeWidget.SingleSelection);self.setDropIndicatorShown(True);self.setAutoExpandDelay(280)
+
+    def startDrag(self,supported_actions):
+        item=self.currentItem();self._last_article_target=None
+        self._drag_payload={'kind':item.data(0,ROLE_KIND),'path':str(item.data(0,ROLE_PATH) or '')} if item else None
+        try:super().startDrag(supported_actions)
+        finally:self._drag_payload=None;self._last_article_target=None
+
+    def article_destination(self,target):
+        if not target:return None
+        kind=target.data(0,ROLE_KIND)
+        destination=target.parent() if kind=='article' else target
+        if destination and destination.data(0,ROLE_KIND) in {'collection','category'}:return destination,target if kind=='article' else None
+        return None
+
+    def dragMoveEvent(self,event):
+        payload=self._drag_payload
+        if payload and payload.get('kind')=='article':
+            resolved=self.article_destination(self.itemAt(event.position().toPoint()))
+            if resolved:
+                destination,target_article=resolved;destination_kind=destination.data(0,ROLE_KIND);destination_id=str(destination.data(0,ROLE_COLLECTION) or '')
+                self._last_article_target=(destination_kind,destination_id,str(target_article.data(0,ROLE_PATH) or '') if target_article else '')
+                super().dragMoveEvent(event)
+                if not event.isAccepted():event.acceptProposedAction()
+                return
+            if self._last_article_target:event.acceptProposedAction();return
+            event.ignore();return
+        super().dragMoveEvent(event)
 
     def dropEvent(self,event):
-        dragged=self.currentItem();target=self.itemAt(event.position().toPoint())
-        if not dragged or not target or dragged is target:event.ignore();return
-        kind=dragged.data(0,ROLE_KIND);target_kind=target.data(0,ROLE_KIND)
+        payload=self._drag_payload or ({'kind':self.currentItem().data(0,ROLE_KIND),'path':str(self.currentItem().data(0,ROLE_PATH) or '')} if self.currentItem() else None);target=self.itemAt(event.position().toPoint())
+        if not payload:event.ignore();return
+        kind=payload.get('kind');dragged_path=payload.get('path','');target_kind=target.data(0,ROLE_KIND) if target else ''
         if kind=='article':
-            destination=target.parent() if target_kind=='article' else target
-            if not destination or destination.data(0,ROLE_KIND) not in {'collection','category'}:event.ignore();return
-            dragged_path=str(dragged.data(0,ROLE_PATH));paths=[Path(destination.child(i).data(0,ROLE_PATH)) for i in range(destination.childCount()) if destination.child(i).data(0,ROLE_KIND)=='article' and destination.child(i).data(0,ROLE_PATH)!=dragged_path]
-            if target_kind=='article' and target.parent() is destination:
-                target_path=Path(target.data(0,ROLE_PATH));insert=paths.index(target_path) if target_path in paths else len(paths);paths.insert(insert,Path(dragged_path))
+            resolved=self.article_destination(target);target_path=''
+            if resolved:
+                destination,target_article=resolved;destination_kind=destination.data(0,ROLE_KIND);destination_id=str(destination.data(0,ROLE_COLLECTION) or '');target_path=str(target_article.data(0,ROLE_PATH) or '') if target_article else ''
+            elif self._last_article_target:
+                destination_kind,destination_id,target_path=self._last_article_target;destination=self.find_destination(destination_kind,destination_id)
+            else:destination=None;destination_kind='';destination_id=''
+            if not destination or not destination_id:
+                self.dropRejected.emit('请将文章放到具体的合集或分类名称上');event.ignore();return
+            if target_path==dragged_path:event.ignore();return
+            paths=[Path(destination.child(i).data(0,ROLE_PATH)) for i in range(destination.childCount()) if destination.child(i).data(0,ROLE_KIND)=='article' and str(destination.child(i).data(0,ROLE_PATH) or '')!=dragged_path]
+            if target_path:
+                target_file=Path(target_path);insert=paths.index(target_file) if target_file in paths else len(paths)
+                if self.dropIndicatorPosition()==QAbstractItemView.DropIndicatorPosition.BelowItem:insert+=1
+                paths.insert(min(insert,len(paths)),Path(dragged_path))
             else:paths.append(Path(dragged_path))
-            destination_id=destination.data(0,ROLE_COLLECTION) if destination.data(0,ROLE_KIND)=='collection' else destination.text(0).split('  ·  ')[0]
-            destination_kind=destination.data(0,ROLE_KIND);ordered=[str(path) for path in paths]
+            ordered=[str(path) for path in paths]
             # QTreeWidget still owns persistent indexes until dropEvent returns. Rebuilding
             # synchronously here can make Qt apply the tail of the old drag to the new tree.
             self.setEnabled(False);QTimer.singleShot(0,lambda:self.finish_article_drop(dragged_path,destination_kind,destination_id,ordered));event.ignore();return
-        roots={'collection':'collections-root','project':'projects-root'}
+        dragged=self.find_path_item(dragged_path,kind);roots={'collection':'collections-root','project':'projects-root'}
+        if not dragged or not target:event.ignore();return
         if kind not in roots:event.ignore();return
         root=dragged.parent();destination=target.parent() if target_kind==kind else target
         if not root or root.data(0,ROLE_KIND)!=roots[kind] or destination is not root:event.ignore();return
@@ -284,9 +321,25 @@ class ContentTree(QTreeWidget):
         else:paths.append(dragged_path)
         self.setEnabled(False);QTimer.singleShot(0,lambda:self.finish_order_drop(kind,paths));event.ignore()
 
+    def find_path_item(self,path,kind=''):
+        iterator=QTreeWidgetItemIterator(self)
+        while iterator.value():
+            item=iterator.value()
+            if str(item.data(0,ROLE_PATH) or '')==path and (not kind or item.data(0,ROLE_KIND)==kind):return item
+            iterator+=1
+        return None
+
+    def find_destination(self,kind,identifier):
+        iterator=QTreeWidgetItemIterator(self)
+        while iterator.value():
+            item=iterator.value()
+            if item.data(0,ROLE_KIND)==kind and str(item.data(0,ROLE_COLLECTION) or '')==identifier:return item
+            iterator+=1
+        return None
+
     def finish_article_drop(self,article_path,destination_kind,destination_id,ordered_paths):
         try:self.articleMoved.emit(article_path,destination_kind,destination_id,ordered_paths)
-        finally:self.setEnabled(True);self.setFocus()
+        finally:self._last_article_target=None;self.setEnabled(True);self.setFocus()
 
     def finish_order_drop(self,kind,ordered_paths):
         try:self.orderChanged.emit(kind,ordered_paths)
@@ -322,8 +375,8 @@ class Studio(QMainWindow):
 
         left=self.panel('panel');lv=QVBoxLayout(left);lv.setContentsMargins(14,16,14,14);lv.setSpacing(10)
         head=QHBoxLayout();heading=QLabel('内容库');heading.setObjectName('panelTitle');self.pending_badge=QLabel('0 项未发布');self.pending_badge.setObjectName('badge');head.addWidget(heading);head.addStretch();head.addWidget(self.pending_badge);lv.addLayout(head)
-        self.tree=ContentTree();self.tree.itemSelectionChanged.connect(self.select_item);self.tree.itemClicked.connect(self.expand_tree_item);self.tree.articleMoved.connect(self.apply_article_move);self.tree.orderChanged.connect(self.apply_tree_order);lv.addWidget(self.tree,1)
-        create=QHBoxLayout();new_article=QPushButton('新建文章');new_article.setProperty('primary',True);new_article.clicked.connect(self.new_article);new_collection=QPushButton('新建合集');new_collection.clicked.connect(self.new_collection);create.addWidget(new_article);create.addWidget(new_collection);lv.addLayout(create)
+        self.tree=ContentTree();self.tree.itemSelectionChanged.connect(self.select_item);self.tree.itemClicked.connect(self.expand_tree_item);self.tree.articleMoved.connect(self.apply_article_move);self.tree.orderChanged.connect(self.apply_tree_order);self.tree.dropRejected.connect(lambda message:self.statusBar().showMessage(message,3500));lv.addWidget(self.tree,1)
+        create=QHBoxLayout();new_article=QPushButton('新建文章');new_article.setProperty('primary',True);new_article.clicked.connect(self.new_article);new_collection=QPushButton('新建合集');new_collection.clicked.connect(lambda:self.new_collection(True));create.addWidget(new_article);create.addWidget(new_collection);lv.addLayout(create)
         new_category=QPushButton('新建分类');new_category.clicked.connect(self.new_category_from_library);lv.addWidget(new_category)
         self.add_project_page_button=QPushButton('添加 GitHub 项目到项目页');self.add_project_page_button.setToolTip('粘贴 GitHub 仓库地址即可创建本地项目快照');self.add_project_page_button.clicked.connect(lambda:self.add_project(False));lv.addWidget(self.add_project_page_button)
         trash_actions=QHBoxLayout();delete=QPushButton('移到废纸篓');delete.setProperty('danger',True);delete.clicked.connect(self.delete_article);open_trash=QPushButton('打开废纸篓');open_trash.clicked.connect(self.open_trash);trash_actions.addWidget(delete);trash_actions.addWidget(open_trash);lv.addLayout(trash_actions)
@@ -335,7 +388,7 @@ class Studio(QMainWindow):
         self.title_field=QLineEdit();layout.addRow('标题',self.title_field)
         self.description=QTextEdit();self.description.setMinimumHeight(92);self.description.setPlaceholderText('用两到三句话概括文章内容，这段文字会用于列表与搜索摘要。');layout.addRow('摘要',self.description)
         self.category_box=QWidget();category_box_layout=QVBoxLayout(self.category_box);category_box_layout.setContentsMargins(0,0,0,0);category_box_layout.setSpacing(5);category_row=QHBoxLayout();category_row.setContentsMargins(0,0,0,0);self.category=QComboBox();self.category.setEditable(False);add_category=QPushButton('新建');add_category.setProperty('compact',True);add_category.clicked.connect(self.add_category);manage_category=QPushButton('管理');manage_category.setProperty('compact',True);manage_category.clicked.connect(self.manage_categories);category_row.addWidget(self.category,1);category_row.addWidget(add_category);category_row.addWidget(manage_category);category_box_layout.addLayout(category_row);self.category_hint=QLabel('从已有分类中选择，或新建、重命名和删除分类。');self.category_hint.setObjectName('muted');self.category_hint.setWordWrap(True);category_box_layout.addWidget(self.category_hint);layout.addRow('分类',self.category_box)
-        collection_row=QHBoxLayout();self.collection=QComboBox();add_collection=QPushButton('新建');add_collection.setProperty('compact',True);add_collection.clicked.connect(self.new_collection);collection_row.addWidget(self.collection,1);collection_row.addWidget(add_collection);layout.addRow('合集',collection_row)
+        collection_row=QHBoxLayout();self.collection=QComboBox();add_collection=QPushButton('新建');add_collection.setProperty('compact',True);add_collection.clicked.connect(lambda:self.new_collection(False));collection_row.addWidget(self.collection,1);collection_row.addWidget(add_collection);layout.addRow('合集',collection_row)
         self.order=QSpinBox();self.order.setRange(0,9999);self.order.setSpecialValueText('散篇 / 自动');layout.addRow('章节顺序',self.order)
         self.tags=TagPicker();layout.addRow('标签池',self.tags)
         cover_row=QHBoxLayout();self.cover=QLineEdit();self.cover.setReadOnly(True);cover_choose=QPushButton('选择并裁切');cover_choose.clicked.connect(self.choose_cover);cover_clear=QPushButton('清除');cover_clear.setProperty('compact',True);cover_clear.clicked.connect(lambda:self.cover.clear());cover_row.addWidget(self.cover,1);cover_row.addWidget(cover_choose);cover_row.addWidget(cover_clear);layout.addRow('封面',cover_row)
@@ -384,7 +437,7 @@ class Studio(QMainWindow):
         for signal_object in [self.auto_numbering.toggled,self.show_contents.toggled,self.show_side_toc.toggled]:signal_object.connect(self.schedule_display_save)
         for signal_object in [self.project_title_field.textChanged,self.project_description.textChanged,self.project_topics.changed,self.project_homepage.textChanged,self.project_cover.textChanged,self.project_cover_alt.textChanged,self.project_featured.toggled,self.project_order.valueChanged]:signal_object.connect(self.schedule_project_save)
         for signal_object in [self.collection_title_field.textChanged,self.collection_description.textChanged,self.collection_subtitle.textChanged,self.collection_volume.textChanged,self.collection_status.currentIndexChanged,self.collection_featured.toggled]:signal_object.connect(self.schedule_collection_save)
-        self.category_name_field.textChanged.connect(self.schedule_category_save)
+        self.category_name_field.editingFinished.connect(self.schedule_category_save)
         self.collection.currentIndexChanged.connect(self.update_category_availability)
         self.apply_theme()
 
@@ -594,16 +647,21 @@ class Studio(QMainWindow):
         loaded=self.preview.url();on_local_preview=loaded.host()=='127.0.0.1' and loaded.port()==self.port
         self.preview_loading=False
         if success and on_local_preview:
-            selector='.prose' if self.selected_kind=='article' else '.projects' if self.selected_kind=='project' else '#main-content'
-            expected=json.dumps(self.preview_expected_version if self.selected_kind=='article' else '')
-            script=f"(()=>{{const node=document.querySelector({json.dumps(selector)});if(!node)return false;const expected={expected};return !expected||node.dataset.contentVersion===expected}})()"
+            article_route=preview_route('article',self.current_file.parent.name) if self.selected_kind=='article' and self.current_file else ''
+            collection_route=preview_route('collection',self.selected_path.stem) if self.selected_kind=='collection' and self.selected_path else ''
+            if article_route and self.preview_path==article_route:selector='.prose';expected_version=self.preview_expected_version;expected_id=''
+            elif self.selected_kind=='project' and self.preview_path=='/projects/':selector='.projects';expected_version='';expected_id=''
+            elif collection_route and self.preview_path==collection_route:selector='[data-preview-kind="collection"]';expected_version=self.preview_expected_version;expected_id=self.selected_path.stem
+            elif self.selected_kind=='category' and self.preview_path=='/categories/':selector='[data-preview-kind="categories"]';expected_version=self.preview_expected_version;expected_id=''
+            else:selector='#main-content';expected_version='';expected_id=''
+            script=f"(()=>{{const node=document.querySelector({json.dumps(selector)});if(!node)return false;const expectedVersion={json.dumps(expected_version)},expectedId={json.dumps(expected_id)};if(expectedVersion&&node.dataset.contentVersion!==expectedVersion)return false;if(expectedId&&node.dataset.previewId!==expectedId)return false;return !document.querySelector('[data-preview-kind=\"not-found\"]')}})()"
             self.preview.page().runJavaScript(script,self.confirm_preview_dom)
         elif self.port_open():QTimer.singleShot(250,lambda:self.try_preview_navigation(self.preview_navigation,0))
 
     def confirm_preview_dom(self,ready):
         if not ready:
             self.preview_ready=False;self.preview_loading=False;self.preview_dom_attempts+=1
-            if self.preview_dom_attempts<40:self.preview_status.setText('正在等待新文章路由…');QTimer.singleShot(150,lambda:self.try_preview_navigation(self.preview_navigation,0))
+            if self.preview_dom_attempts<40:self.preview_status.setText('正在等待最新页面…');QTimer.singleShot(150,lambda:self.try_preview_navigation(self.preview_navigation,0))
             else:self.preview_status.setText('预览路由尚未就绪 · 正在重建');self.restart_preview(self.preview_path)
             return
         self.preview_dom_attempts=0;self.preview_ready=True;self.preview_failures=0;self.preview_status.setText('● 稳定实时预览');self.preview.page().runJavaScript("document.querySelector('.giscus')?.replaceChildren(Object.assign(document.createElement('p'),{className:'studio-comments-note',textContent:'正式网站会在此载入 GitHub Discussions；Studio 中保留版式预览，不加载外部 iframe。'}))");self.install_preview_scroll_bridge();self.sync_preview_theme();QTimer.singleShot(35,self.complete_preview_refresh)
@@ -639,15 +697,16 @@ class Studio(QMainWindow):
         self.preview.page().runJavaScript(script)
 
     def refresh_preview_fragment(self,attempt=0,generation=None):
-        if self.selected_kind not in {'article','project'}:return self.complete_preview_refresh()
+        if self.selected_kind not in {'article','project','collection','category'}:return self.complete_preview_refresh()
         if self.selected_kind=='article' and not self.current_file:return self.complete_preview_refresh()
+        if self.selected_kind=='collection' and not self.selected_path:return self.complete_preview_refresh()
         if not self.preview_ready or not self.port_open():
             if attempt<40:return QTimer.singleShot(120,lambda:self.refresh_preview_fragment(attempt+1,generation))
             self.preview_status.setText('预览正在自动恢复 · 当前画面保持不变');self.preview_refresh_pending=False;return
         if generation is None:self.preview_patch_generation+=1;generation=self.preview_patch_generation
         url=self.preview_url().toString()+('?' if '?' not in self.preview_url().toString() else '&')+f'__prism_patch={time.time_ns()}'
         self.cancel_preview_request();request=QNetworkRequest(QUrl(url));request.setRawHeader(b'Cache-Control',b'no-cache, no-store');request.setRawHeader(b'Pragma',b'no-cache');request.setRawHeader(b'User-Agent',b'Prism-Studio-Preview');request.setAttribute(QNetworkRequest.Attribute.CacheLoadControlAttribute,QNetworkRequest.CacheLoadControl.AlwaysNetwork)
-        self.preview_status.setText('正在同步内容…');reply=self.preview_network.get(request);self.preview_reply=reply;reply.finished.connect(lambda:self.finish_preview_reply(reply,attempt,generation));QTimer.singleShot(4500,lambda:self.expire_preview_reply(reply,generation))
+        self.preview_status.setText('正在同步内容…');reply=self.preview_network.get(request);self.preview_reply=reply;expected_version=self.preview_expected_version;reply.finished.connect(lambda:self.finish_preview_reply(reply,attempt,generation,expected_version));QTimer.singleShot(4500,lambda:self.expire_preview_reply(reply,generation))
 
     def cancel_preview_request(self):
         reply=self.preview_reply
@@ -657,31 +716,32 @@ class Studio(QMainWindow):
     def expire_preview_reply(self,reply,generation):
         if generation==self.preview_patch_generation and reply is self.preview_reply and reply.isRunning():reply.abort()
 
-    def finish_preview_reply(self,reply,attempt,generation):
+    def finish_preview_reply(self,reply,attempt,generation,expected_version):
         if reply is self.preview_reply:self.preview_reply=None
         if generation!=self.preview_patch_generation:reply.deleteLater();return
         error=reply.error();source=bytes(reply.readAll()).decode('utf-8',errors='replace');reply.deleteLater()
         if error!=QNetworkReply.NetworkError.NoError:
             if attempt<40:return QTimer.singleShot(120,lambda:self.refresh_preview_fragment(attempt+1,generation))
             self.preview_status.setText('预览正在自动恢复 · 当前画面保持不变');self.preview_refresh_pending=False;return
-        expected='.prose' if self.selected_kind=='article' else '.projects'
-        if (expected=='.prose' and 'class="prose' not in source) or (expected=='.projects' and 'class="projects' not in source):
+        expected={'article':'.prose','project':'.projects','collection':'[data-preview-kind="collection"]','category':'[data-preview-kind="categories"]'}[self.selected_kind]
+        valid_source=(expected=='.prose' and 'class="prose' in source) or (expected=='.projects' and 'class="projects' in source) or (self.selected_kind=='collection' and 'data-preview-kind="collection"' in source and f'data-preview-id="{self.selected_path.stem}"' in source) or (self.selected_kind=='category' and 'data-preview-kind="categories"' in source)
+        if not valid_source:
             if attempt<40:return QTimer.singleShot(120,lambda:self.refresh_preview_fragment(attempt+1,generation))
             self.preview_status.setText('预览等待最新构建 · 当前画面保持不变');self.preview_refresh_pending=False;return
-        marker=f'data-content-version="{self.preview_expected_version}"'
-        if self.preview_expected_version and marker not in source:
+        marker=f'data-content-version="{expected_version}"'
+        if expected_version and marker not in source:
             self.preview_status.setText('正在等待当前版本…')
             if attempt<40:return QTimer.singleShot(90,lambda:self.refresh_preview_fragment(attempt+1,generation))
             self.preview_refresh_pending=False;self.preview_status.setText('Astro 正在整理最新内容 · 画面不会回退');return QTimer.singleShot(600,self.refresh_preview_fragment)
         encoded=json.dumps(source)
-        selectors=['.article-head','.book-toc','.side-toc','.prose','.article-notes','.nav-section','.related'] if self.selected_kind=='article' else ['.page-head','.projects']
+        selectors={'article':['.article-head','.book-toc','.side-toc','.prose','.article-notes','.nav-section','.related'],'project':['.page-head','.projects'],'collection':['[data-preview-kind="collection"]'],'category':['[data-preview-kind="categories"]']}[self.selected_kind]
         selector_json=json.dumps(selectors);anchor=json.dumps(expected)
         script=f"""
         (()=>{{
           try{{
             const nextDoc=new DOMParser().parseFromString({encoded},'text/html');
             const anchorSelector={anchor},oldAnchor=document.querySelector(anchorSelector),nextAnchor=nextDoc.querySelector(anchorSelector);
-            if(!oldAnchor||!nextAnchor)return;
+            if(!oldAnchor||!nextAnchor)return false;
             const oldTop=oldAnchor.getBoundingClientRect().top+scrollY,relative=scrollY-oldTop;
             let changed=0;
             const replace=(selector)=>{{
@@ -693,12 +753,20 @@ class Studio(QMainWindow):
             {selector_json}.forEach(replace);
             document.title=nextDoc.title||document.title;
             document.querySelectorAll('.prose pre').forEach(pre=>{{if(pre.querySelector('.copy-code'))return;const button=document.createElement('button');button.className='copy-code';button.type='button';button.textContent='复制';button.addEventListener('click',async()=>{{await navigator.clipboard.writeText(pre.innerText.replace(/^复制/,''));button.textContent='已复制';setTimeout(()=>button.textContent='复制',1200)}});pre.append(button)}});
-            const patchedAnchor=document.querySelector(anchorSelector);if(patchedAnchor)scrollTo({{top:patchedAnchor.getBoundingClientRect().top+scrollY+relative,behavior:'instant'}});
+            window.__prismInitCategories?.();
+            const patchedAnchor=document.querySelector(anchorSelector);if(!patchedAnchor)return false;scrollTo({{top:patchedAnchor.getBoundingClientRect().top+scrollY+relative,behavior:'instant'}});
             document.documentElement.dataset.prismPatch={json.dumps(str(generation))};
-          }}catch(error){{console.warn('Prism patch deferred',error)}}
+            return true;
+          }}catch(error){{console.warn('Prism patch deferred',error);return false}}
         }})()
         """
-        self.preview.page().runJavaScript(script);QTimer.singleShot(24,lambda:self.finish_preview_fragment(generation))
+        self.preview.page().runJavaScript(script,lambda applied:self.preview_fragment_applied(bool(applied),attempt,generation))
+
+    def preview_fragment_applied(self,applied,attempt,generation):
+        if generation!=self.preview_patch_generation:return
+        if applied:return self.finish_preview_fragment(generation)
+        if attempt<8:return QTimer.singleShot(90,lambda:self.refresh_preview_fragment(attempt+1,generation))
+        self.preview_refresh_pending=False;self.preview_status.setText('预览局部更新未就绪 · 当前画面保持不变')
 
     def finish_preview_fragment(self,generation):
         if generation!=self.preview_patch_generation:return
@@ -808,14 +876,14 @@ class Studio(QMainWindow):
     def load_collection_editor(self,path):
         try:data=load_collection_snapshot(path)
         except (OSError,ValueError) as error:return QMessageBox.warning(self,'无法打开合集',str(error))
-        self.collection_loading=True;self.collection_original=dict(data);self.collection_title_field.setText(str(data.get('title','')));self.collection_description.setPlainText(str(data.get('description','')));self.collection_subtitle.setText(str(data.get('subtitle') or ''));self.collection_volume.setText(str(data.get('volume') or ''));index=self.collection_status.findData(data.get('status','ongoing'));self.collection_status.setCurrentIndex(max(0,index));self.collection_featured.setChecked(bool(data.get('featured',False)));self.collection_loading=False;self.collection_loaded_state=self.collection_view_state();self.set_content_mode('collection')
+        self.collection_loading=True;self.collection_original=dict(data);self.collection_title_field.setText(str(data.get('title','')));self.collection_description.setPlainText(str(data.get('description','')));self.collection_subtitle.setText(str(data.get('subtitle') or ''));self.collection_volume.setText(str(data.get('volume') or ''));index=self.collection_status.findData(data.get('status','ongoing'));self.collection_status.setCurrentIndex(max(0,index));self.collection_featured.setChecked(bool(data.get('featured',False)));self.collection_loading=False;self.collection_loaded_state=self.collection_view_state();self.preview_expected_version=collection_preview_version(data);self.set_content_mode('collection')
 
     def collection_view_state(self):
         return (self.collection_title_field.text(),self.collection_description.toPlainText(),self.collection_subtitle.text(),self.collection_volume.text(),self.collection_status.currentData(),self.collection_featured.isChecked())
 
     def schedule_collection_save(self,*_):
         if self.collection_loading or self.selected_kind!='collection' or not self.selected_path:return
-        self.mark_selected_pending('合集信息已修改，正在保存…');self.save_state.setText('正在保存合集信息…');self.collection_save_timer.start()
+        self.cancel_preview_request();self.preview_patch_generation+=1;self.mark_selected_pending('合集信息已修改，正在保存并同步预览…');self.save_state.setText('正在保存合集信息…');self.collection_save_timer.start()
 
     def save_collection_current(self):
         if self.collection_loading or self.selected_kind!='collection' or not self.selected_path or not self.selected_path.exists():return
@@ -824,15 +892,16 @@ class Studio(QMainWindow):
         data=dict(self.collection_original);data.update({'title':self.collection_title_field.text().strip(),'description':self.collection_description.toPlainText().strip(),'subtitle':self.collection_subtitle.text().strip() or None,'volume':self.collection_volume.text().strip() or None,'status':self.collection_status.currentData(),'featured':self.collection_featured.isChecked()})
         try:save_collection_snapshot(self.selected_path,data,ROOT)
         except (OSError,ValueError) as error:self.save_state.setText('合集保存失败');self.statusBar().showMessage(str(error),5000);return
-        self.collection_original=data;self.collection_loaded_state=state;self.catalog=content_catalog(ROOT);self.load_tree(str(self.selected_path));self.save_state.setText('● 合集已保存 · 等待上传');self.navigate_preview(preview_route('collection',self.selected_path.stem));self.refresh_change_markers()
+        self.collection_original=data;self.collection_loaded_state=state;self.preview_expected_version=collection_preview_version(data);self.catalog=content_catalog(ROOT);self.load_tree(str(self.selected_path));self.preview_refresh_pending=True;self.preview_refresh_timer.start();self.save_state.setText('● 合集已保存 · 等待上传');self.refresh_change_markers()
 
     def load_category_editor(self,name,item=None):
-        self.category_loading=True;self.selected_category=name;self.category_original_name=name;self.category_name_field.setText(name);count=sum(1 for article in self.catalog.get('articles',[]) if not article.get('collection') and (article.get('category') or '未分类')==name);self.category_count.setText(f'{count} 篇散篇');self.category_name_field.setReadOnly(name=='未分类');self.category_info_hint.setText('“未分类”是系统保留位置，不能重命名；可把文章拖入或拖出。' if name=='未分类' else '修改名称会自动迁移该分类中的全部散篇；也可以直接把文章拖入其他分类或合集。');self.category_loading=False;self.set_content_mode('category')
+        self.category_loading=True;self.selected_category=name;self.category_original_name=name;self.category_name_field.setText(name);count=sum(1 for article in self.catalog.get('articles',[]) if not article.get('collection') and (article.get('category') or '未分类')==name);self.category_count.setText(f'{count} 篇散篇');self.category_name_field.setReadOnly(name=='未分类');self.category_info_hint.setText('“未分类”是系统保留位置，不能重命名；可把文章拖入或拖出。' if name=='未分类' else '修改名称会自动迁移该分类中的全部散篇；也可以直接把文章拖入其他分类或合集。');self.category_loading=False;self.preview_expected_version=category_preview_version(self.catalog.get('categories',[]));self.set_content_mode('category')
         if item:item.setExpanded(True)
 
     def schedule_category_save(self,*_):
         if self.category_loading or self.selected_kind!='category' or not self.category_original_name or self.category_original_name=='未分类':return
-        self.save_state.setText('正在更新分类名称…');self.category_save_timer.start()
+        if self.category_name_field.text().strip()==self.category_original_name:return
+        self.save_state.setText('正在更新分类名称…');self.category_save_timer.start(30)
 
     def save_category_current(self):
         if self.category_loading or self.selected_kind!='category':return
@@ -840,13 +909,17 @@ class Studio(QMainWindow):
         if not new or new==old:return
         try:migrate_category(ROOT,old,new)
         except (OSError,ValueError) as error:self.save_state.setText('分类更新失败');self.statusBar().showMessage(str(error),5000);return
-        self.category_original_name=new;self.selected_category=new;self.catalog=content_catalog(ROOT);self.load_tree();self.select_tree_category(new);self.save_state.setText('● 分类已重命名 · 等待上传');self.refresh_change_markers()
+        self.category_original_name=new;self.selected_category=new;self.catalog=content_catalog(ROOT);self.load_tree();item=self.select_tree_category(new,False);self.load_category_editor(new,item);self.preview_refresh_pending=True;self.preview_refresh_timer.start();self.save_state.setText('● 分类已重命名 · 等待上传');self.refresh_change_markers()
 
-    def select_tree_category(self,name):
+    def select_tree_category(self,name,notify=True):
         iterator=QTreeWidgetItemIterator(self.tree)
         while iterator.value():
             item=iterator.value()
-            if item.data(0,ROLE_KIND)=='category' and item.data(0,ROLE_COLLECTION)==name:self.tree.setCurrentItem(item);item.setExpanded(True);return
+            if item.data(0,ROLE_KIND)=='category' and item.data(0,ROLE_COLLECTION)==name:
+                if not notify:self.tree.blockSignals(True)
+                self.tree.setCurrentItem(item);item.setExpanded(True)
+                if not notify:self.tree.blockSignals(False)
+                return item
             iterator+=1
 
     def select_item(self):
@@ -929,6 +1002,14 @@ class Studio(QMainWindow):
         current_state=self.view_state()
         if current_state==self.loaded_view_state:self.document_dirty=False;self.save_state.setText('已保存到本地');return
         data=self.metadata();body=self.editor.toPlainText();old_tree_state=(self.original_metadata.get('title'),self.original_metadata.get('category'),self.original_metadata.get('collection'),self.original_metadata.get('collectionOrder'));new_tree_state=(data.get('title'),data.get('category'),data.get('collection'),data.get('collectionOrder'))
+        if not str(data.get('title','')).strip():self.save_state.setText('文章标题不能为空 · 继续输入后会自动保存');return
+        if not str(data.get('description','')).strip():self.save_state.setText('文章摘要不能为空 · 继续输入后会自动保存');return
+        if not data.get('tags'):self.save_state.setText('至少选择一个标签 · 补充后会自动保存');return
+        if len(str(data.get('description',''))) > 180:self.save_state.setText('文章摘要不能超过 180 个字符');return
+        canonical=str(data.get('canonical') or '').strip()
+        if canonical:
+            canonical_url=QUrl(canonical)
+            if not canonical_url.isValid() or canonical_url.scheme() not in {'http','https'} or not canonical_url.host():self.save_state.setText('Canonical 需要填写完整的 http(s) 地址');return
         if semantic_value(data)==semantic_value(self.original_metadata) and body==self.original_body:self.loaded_view_state=current_state;self.document_dirty=False;self.save_state.setText('已保存到本地');return
         try:atomic_save(self.current_file,serialize_frontmatter(data,body),ROOT)
         except OSError as error:self.save_state.setText('保存失败 · 修改仍在编辑器中');self.statusBar().showMessage(str(error),5000);return
@@ -995,14 +1076,19 @@ class Studio(QMainWindow):
         except (OSError,ValueError,FileExistsError) as error:self.workspace_status.setText('文章创建失败');return QMessageBox.warning(self,'创建失败',str(error))
         self.log.appendPlainText(f'已创建草稿：{created.relative_to(ROOT)}');self.workspace_status.setText('新文章已创建在“未分类” · 正在准备预览');self.catalog=content_catalog(ROOT);self.load_tree(str(created),activate_missing=False);route=preview_route('article',created.parent.name);self.restart_preview(route);QTimer.singleShot(0,lambda:self.select_tree_path(created))
 
-    def new_collection(self):
+    def new_collection(self,open_after=True):
         dialog=CollectionDialog(self)
         if dialog.exec()!=QDialog.Accepted:return
         try:
-            path=create_collection(ROOT,**dialog.values());self.reload_content();index=self.collection.findData(path.stem)
-            if index>=0:self.collection.setCurrentIndex(index)
-            self.log.appendPlainText(f'合集已创建：{path.relative_to(ROOT)}')
-        except (ValueError,FileExistsError) as error:QMessageBox.warning(self,'创建失败',str(error))
+            path=create_collection(ROOT,**dialog.values());self.catalog=content_catalog(ROOT);self.log.appendPlainText(f'合集已创建：{path.relative_to(ROOT)}');self.workspace_status.setText('合集已创建 · 正在重建预览索引')
+            if open_after or not self.current_file:
+                self.load_tree(str(path),activate_missing=False);route=preview_route('collection',path.stem);self.restart_preview(route);QTimer.singleShot(0,lambda:self.select_tree_path(path))
+            else:
+                article_path=self.current_file;self.reload_content();index=self.collection.findData(path.stem)
+                if index>=0:self.collection.setCurrentIndex(index)
+                self.save_timer.stop();self.save_current();self.restart_preview(preview_route('article',article_path.parent.name))
+            self.refresh_change_markers()
+        except (OSError,ValueError,FileExistsError) as error:QMessageBox.warning(self,'创建失败',str(error))
 
     def apply_article_move(self,path,destination_kind,destination_id,paths):
         article=Path(path)
@@ -1010,7 +1096,7 @@ class Studio(QMainWindow):
         try:move_article(ROOT,article,destination_kind,destination_id,[Path(item) for item in paths]);self.catalog=content_catalog(ROOT);self.load_tree(str(article));self.refresh_change_markers()
         except (OSError,ValueError) as error:QMessageBox.warning(self,'无法移动文章',str(error));self.reload_content();return
         if self.current_file==article:
-            data,body=split_frontmatter(article.read_text('utf-8'));self.original_metadata=dict(data);self.original_body=body;self.loading=True;category=str(data.get('category') or '未分类');self.category.setCurrentIndex(max(0,self.category.findText(category)));self.collection.setCurrentIndex(max(0,self.collection.findData(data.get('collection') or '')));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.loading=False;self.loaded_view_state=self.view_state();self.update_category_availability()
+            data,body=split_frontmatter(article.read_text('utf-8'));self.original_metadata=dict(data);self.original_body=body;self.loading=True;category=str(data.get('category') or '未分类');self.category.setCurrentIndex(max(0,self.category.findText(category)));self.collection.setCurrentIndex(max(0,self.collection.findData(data.get('collection') or '')));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.loading=False;self.loaded_view_state=self.view_state();self.preview_expected_version=article_preview_version(data,body);self.preview_refresh_pending=True;self.preview_refresh_timer.start();self.update_category_availability()
         destination='合集' if destination_kind=='collection' else '分类';self.save_state.setText(f'● 已移动到{destination} · 等待上传');self.statusBar().showMessage(f'文章已移动到“{destination_id}”',2200)
 
     def apply_tree_order(self,kind,paths):

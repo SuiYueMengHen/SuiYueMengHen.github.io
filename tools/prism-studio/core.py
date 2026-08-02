@@ -47,6 +47,12 @@ def article_preview_version(data:dict,body:str='')->str:
 def project_preview_version(data:dict)->str:
     return _preview_digest([_preview_text(data.get('repo')),_preview_text(data.get('title')),_preview_text(data.get('description')),'\x1e'.join(map(_preview_text,data.get('topics',[]))),_preview_text(data.get('homepage')),_preview_text(data.get('cover')),_preview_text(data.get('coverAlt')),_preview_flag(data.get('featured')),_preview_text(data.get('order'))])
 
+def collection_preview_version(data:dict)->str:
+    return _preview_digest([_preview_text(data.get('title')),_preview_text(data.get('description')),_preview_text(data.get('subtitle')),_preview_text(data.get('volume')),_preview_text(data.get('status')),_preview_flag(data.get('featured')),_preview_text(data.get('order')),_preview_text(data.get('cover')),_preview_text(data.get('coverAlt'))])
+
+def category_preview_version(names:list[str])->str:
+    return _preview_digest(['\x1e'.join(sorted({_preview_text(name) for name in names if _preview_text(name)}))])
+
 def atomic_save(path:Path,content:str,repo_root:Path,backup:bool=True)->None:
     path.parent.mkdir(parents=True,exist_ok=True)
     if backup and path.exists():
@@ -242,7 +248,7 @@ def migrate_category(repo_root:Path,old_name:str,new_name:str)->list[Path]:
     changed=[]
     for path in sorted([*(repo_root/'src/content/blog').glob('*/index.md'),*(repo_root/'src/content/blog').glob('*/index.mdx')]):
         data,body=split_frontmatter(path.read_text('utf-8'))
-        if str(data.get('category','')).strip()==old_name:
+        if not data.get('collection') and str(data.get('category','')).strip()==old_name:
             data['category']=new_name;atomic_save(path,serialize_frontmatter(data,body),repo_root);changed.append(path)
     names=[new_name if item==old_name else item for item in content_catalog(repo_root)['categories']]
     save_category_registry(repo_root,names);return changed
@@ -260,6 +266,8 @@ def reorder_collection(repo_root:Path,collection_id:str,ordered_files:list[Path]
         data['collectionOrder']=number;atomic_save(path,serialize_frontmatter(data,body),repo_root)
 
 def move_article(repo_root:Path,article_file:Path,destination_kind:str,destination_id:str,ordered_files:list[Path]|None=None)->None:
+    article_file=article_file.resolve()
+    if not article_file.is_file():raise FileNotFoundError(f'文章不存在：{article_file}')
     data,body=split_frontmatter(article_file.read_text('utf-8'))
     old_collection=data.get('collection')
     if destination_kind=='collection':
@@ -277,8 +285,16 @@ def move_article(repo_root:Path,article_file:Path,destination_kind:str,destinati
             if old_data.get('collection')==old_collection:remaining.append((int(old_data.get('collectionOrder',9999)),path))
         reorder_collection(repo_root,old_collection,[path for _,path in sorted(remaining)])
     if destination_kind=='collection':
-        ordered=list(ordered_files or [])
-        if article_file not in ordered:ordered.append(article_file)
+        members=[]
+        for path in sorted([*(repo_root/'src/content/blog').glob('*/index.md'),*(repo_root/'src/content/blog').glob('*/index.mdx')]):
+            member_data,_=split_frontmatter(path.read_text('utf-8'))
+            if member_data.get('collection')==destination_id:members.append(path.resolve())
+        member_set=set(members);ordered=[]
+        for path in ordered_files or []:
+            resolved=Path(path).resolve()
+            if resolved in member_set and resolved not in ordered:ordered.append(resolved)
+        for path in members:
+            if path not in ordered:ordered.append(path)
         reorder_collection(repo_root,destination_id,ordered)
 
 def reorder_collections(repo_root:Path,ordered_files:list[Path])->None:
