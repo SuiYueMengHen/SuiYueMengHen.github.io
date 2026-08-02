@@ -7,6 +7,7 @@
     "dev": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
     "start": "ASTRO_TELEMETRY_DISABLED=1 astro dev",
     "check": "ASTRO_TELEMETRY_DISABLED=1 astro check && npm run post:check",
+    "prebuild": "node scripts/clean-astro-cache.mjs",
     "build": "ASTRO_TELEMETRY_DISABLED=1 astro build && pagefind --site dist",
     "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
     "test": "vitest run && python3 -m unittest discover -s tools/prism-studio -p 'test_*.py'",
