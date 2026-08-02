@@ -26,7 +26,7 @@ const jsonLd = type === 'article'
   : { '@context': 'https://schema.org', '@type': 'WebSite', name: siteConfig.name, alternateName: siteConfig.englishName, url: siteConfig.site, description, inLanguage: siteConfig.locale };
 ---
 <!doctype html>
-<html lang="zh-CN" style={`--reader-font-size:${siteConfig.reading.fontSize}px;--reader-line-height:${siteConfig.reading.lineHeight};--measure:${siteConfig.reading.contentWidth}rem;--paragraph-indent:${siteConfig.reading.paragraphIndent?'2em':'0'}`}>
+<html lang="zh-CN" style={`--reader-font-size:${siteConfig.reading.fontSize}px;--reader-line-height:${siteConfig.reading.lineHeight};--measure:${siteConfig.reading.contentWidth}rem`}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -45,7 +45,7 @@ const jsonLd = type === 'article'
     {publishedTime && <meta property="article:published_time" content={publishedTime.toISOString()} />}
     {updatedTime && <meta property="article:modified_time" content={updatedTime.toISOString()} />}
     <script is:inline>
-      (() => { const root=document.documentElement;const saved=localStorage.getItem('prism-theme');const dark=matchMedia('(prefers-color-scheme: dark)').matches;root.dataset.theme=saved||(dark?'dark':'light');try{const s=JSON.parse(localStorage.getItem('prism-reader-settings')||'{}');if(s.fontSize)root.style.setProperty('--reader-font-size',`${s.fontSize}px`);if(s.lineHeight)root.style.setProperty('--reader-line-height',s.lineHeight);if(s.contentWidth)root.style.setProperty('--measure',`${s.contentWidth}rem`);if(typeof s.paragraphIndent==='boolean')root.style.setProperty('--paragraph-indent',s.paragraphIndent?'2em':'0')}catch{}})();
+      (() => { const root=document.documentElement;const saved=localStorage.getItem('prism-theme');const dark=matchMedia('(prefers-color-scheme: dark)').matches;root.dataset.theme=saved||(dark?'dark':'light');try{const s=JSON.parse(localStorage.getItem('prism-reader-settings')||'{}');if(s.fontSize)root.style.setProperty('--reader-font-size',`${s.fontSize}px`);if(s.lineHeight)root.style.setProperty('--reader-line-height',s.lineHeight);if(s.contentWidth)root.style.setProperty('--measure',`${s.contentWidth}rem`);if('paragraphIndent' in s){delete s.paragraphIndent;localStorage.setItem('prism-reader-settings',JSON.stringify(s))}}catch{}})();
     </script>
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     <title>{pageTitle}</title>

@@ -30,7 +30,13 @@ export default defineConfig({
         }],
       ],
     }),
-    shikiConfig: { theme: 'github-light-default', wrap: true },
+    shikiConfig: {
+      themes: {
+        light: 'github-light-default',
+        dark: 'github-dark-default',
+      },
+      wrap: true,
+    },
   },
   vite: { build: { cssMinify: true } },
 });

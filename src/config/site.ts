@@ -24,6 +24,7 @@ export const siteConfig = {
     { label: '首页', href: '/' },
     { label: '合集', href: '/blog/' },
     { label: '分类', href: '/categories/' },
+    { label: '归档', href: '/archive/' },
     { label: '项目', href: '/projects/' },
     { label: '关于', href: '/about/' },
   ],
@@ -32,7 +33,6 @@ export const siteConfig = {
     fontSize: 17,
     lineHeight: 1.85,
     contentWidth: 46,
-    paragraphIndent: true,
   },
   comments: {
     enabled: true,

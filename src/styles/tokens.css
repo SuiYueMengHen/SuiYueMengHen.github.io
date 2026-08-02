@@ -8,6 +8,12 @@
   --soft-line: #d9d6ce;
   --accent: #6a1b1b;
   --focus: #8a1c1c;
+  --code-bg: #f1efe8;
+  --code-border: #c8c4ba;
+  --code-text: #25241f;
+  --spectrum-blue: #315fd1;
+  --spectrum-cyan: #138f93;
+  --spectrum-red: #a4385d;
   --line: 1px solid var(--line-color);
   --font-serif: "Computer Modern Serif", "Songti SC", "STSong", "Noto Serif CJK SC", serif;
   --font-sans: "Computer Modern Sans Serif", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -16,7 +22,6 @@
   --wide: 66rem;
   --reader-font-size: 17px;
   --reader-line-height: 1.85;
-  --paragraph-indent: 2em;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -28,4 +33,10 @@
   --soft-line: #3b3933;
   --accent: #d9a3a0;
   --focus: #f0c8c4;
+  --code-bg: #0d1117;
+  --code-border: #454b55;
+  --code-text: #f0f3f6;
+  --spectrum-blue: #7fa3ff;
+  --spectrum-cyan: #63d0d0;
+  --spectrum-red: #ee86a9;
 }

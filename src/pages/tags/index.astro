@@ -1,5 +1,0 @@
----
-import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import { visiblePosts } from '../../lib/posts';const posts=visiblePosts(await getCollection('blog'));const tags=Object.entries(Object.groupBy(posts.flatMap(p=>p.data.tags),t=>t)).sort((a,b)=>b[1]!.length-a[1]!.length);
----
-<BaseLayout title="文章标签"><header class="page-head shell"><p class="section-kicker">Keyword index</p><h1 class="display">标签</h1></header><section class="section"><div class="shell cloud">{tags.map(([tag,items])=><a href={`/tags/${encodeURIComponent(tag)}/`}><span>{tag}</span><small>{items?.length}</small></a>)}</div></section></BaseLayout>
-<style>.cloud{max-width:var(--measure);display:flex;flex-wrap:wrap;justify-content:center;gap:.65rem}.cloud a{display:inline-flex;align-items:baseline;gap:.45rem;padding:.35rem .65rem;border-bottom:1px solid var(--line-color);text-decoration:none}.cloud small{font:500 .68rem var(--font-sans);color:var(--muted-ink)}</style>

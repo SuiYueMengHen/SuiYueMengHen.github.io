@@ -1,26 +1,99 @@
 ---
 import { siteConfig } from '../config/site';
+const titleLines = siteConfig.hero.title.split('\n');
 ---
-<section class="hero">
-  <div class="shell title-page">
-    <p class="series">{siteConfig.hero.eyebrow}</p>
-    <div class="rule" aria-hidden="true"></div>
-    <h1>{siteConfig.hero.title.split('\n').map((line) => <span>{line}</span>)}</h1>
-    <p class="subtitle">{siteConfig.hero.introduction}</p>
-    <p class="author">{siteConfig.author.name}</p>
-    <p class="date">{new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(new Date())}</p>
-    <nav class="hero-actions" aria-label="首页快捷入口">
-      <a href="/blog/">开始阅读</a><span aria-hidden="true">·</span><a href="/archive/">文章索引</a><span aria-hidden="true">·</span><a href="/about/">关于作者</a>
-    </nav>
+<section class="hero" data-prism-hero>
+  <div class="ambient-grid" aria-hidden="true"></div>
+  <div class="spectrum spectrum-a" aria-hidden="true"></div>
+  <div class="spectrum spectrum-b" aria-hidden="true"></div>
+
+  <div class="shell hero-layout">
+    <div class="hero-copy">
+      <p class="eyebrow"><span aria-hidden="true"></span>{siteConfig.hero.eyebrow}</p>
+      <h1>{titleLines.map((line, index) => <span style={`--line:${index}`}>{line}</span>)}</h1>
+      <p class="introduction">{siteConfig.hero.introduction}</p>
+      <div class="hero-actions">
+        <a class="primary-action" href="/blog/"><span>进入合集</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" /></svg></a>
+        <a class="secondary-action" href="/archive/">浏览归档 <span aria-hidden="true">↗</span></a>
+      </div>
+      <dl class="system-status" aria-label="网站特性">
+        <div><dt>01</dt><dd>静态发布<br /><span>GitHub Pages</span></dd></div>
+        <div><dt>02</dt><dd>开放格式<br /><span>Markdown / MDX</span></dd></div>
+        <div><dt>03</dt><dd>科学排版<br /><span>MathJax SVG</span></dd></div>
+      </dl>
+    </div>
+
+    <div class="hero-visual" role="img" aria-label="由轨道、坐标网格和光谱切面构成的三维棱镜">
+      <div class="stage" data-prism-stage>
+        <div class="coordinate coordinate-x" aria-hidden="true">X / 128.4</div>
+        <div class="coordinate coordinate-y" aria-hidden="true">Y / 37.2</div>
+        <div class="orbit orbit-one" aria-hidden="true"></div>
+        <div class="orbit orbit-two" aria-hidden="true"></div>
+        <div class="grid-plane" aria-hidden="true"></div>
+        <div class="prism-shadow" aria-hidden="true"></div>
+        <div class="prism" aria-hidden="true">
+          <svg viewBox="0 0 520 520">
+            <defs>
+              <linearGradient id="face-a" x1="0" y1="0" x2="1" y2="1"><stop stop-color="var(--spectrum-blue)" stop-opacity=".88"/><stop offset="1" stop-color="var(--spectrum-cyan)" stop-opacity=".18"/></linearGradient>
+              <linearGradient id="face-b" x1="1" y1="0" x2="0" y2="1"><stop stop-color="var(--spectrum-red)" stop-opacity=".76"/><stop offset="1" stop-color="var(--spectrum-blue)" stop-opacity=".16"/></linearGradient>
+              <linearGradient id="face-c" x1="0" y1="1" x2="1" y2="0"><stop stop-color="var(--paper)" stop-opacity=".82"/><stop offset="1" stop-color="var(--spectrum-cyan)" stop-opacity=".3"/></linearGradient>
+            </defs>
+            <path class="face face-a" d="M260 48 448 388 260 315Z" fill="url(#face-a)"/>
+            <path class="face face-b" d="M260 48 72 388 260 315Z" fill="url(#face-b)"/>
+            <path class="face face-c" d="M72 388 448 388 260 315Z" fill="url(#face-c)"/>
+            <path class="wire" d="M260 48 448 388H72L260 48Zm0 0v267m188 73-188-73L72 388"/>
+            <path class="refraction" d="m130 297 130-72 144 62M116 321l144-79 158 67M101 346l159-87 171 74"/>
+          </svg>
+        </div>
+        <div class="data-card card-a" aria-hidden="true"><span>REFRACTION</span><strong>42.73°</strong><i></i></div>
+        <div class="data-card card-b" aria-hidden="true"><span>SPECTRUM</span><strong>λ 450—700</strong><i></i></div>
+        <div class="axis-label" aria-hidden="true"><span>PRISM / NOTES</span><b>∞</b></div>
+      </div>
+    </div>
   </div>
+
+  <a class="scroll-cue" href="#latest" aria-label="继续浏览首页内容"><span>SCROLL</span><i aria-hidden="true"></i></a>
 </section>
+
+<script>
+  const hero=document.querySelector<HTMLElement>('[data-prism-hero]');
+  const stage=hero?.querySelector<HTMLElement>('[data-prism-stage]');
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)');
+  const finePointer=matchMedia('(pointer: fine)');
+  let frame=0;
+  const move=(event:PointerEvent)=>{
+    if(!hero||!stage||reduce.matches||!finePointer.matches)return;
+    const rect=hero.getBoundingClientRect();
+    const x=Math.max(-1,Math.min(1,(event.clientX-rect.left)/rect.width*2-1));
+    const y=Math.max(-1,Math.min(1,(event.clientY-rect.top)/rect.height*2-1));
+    cancelAnimationFrame(frame);
+    frame=requestAnimationFrame(()=>{stage.style.setProperty('--pointer-x',`${x*7}deg`);stage.style.setProperty('--pointer-y',`${y*-5}deg`);stage.style.setProperty('--light-x',`${50+x*18}%`);stage.style.setProperty('--light-y',`${48+y*14}%`)});
+  };
+  const reset=()=>{if(!stage)return;stage.style.setProperty('--pointer-x','0deg');stage.style.setProperty('--pointer-y','0deg');stage.style.setProperty('--light-x','50%');stage.style.setProperty('--light-y','48%')};
+  hero?.addEventListener('pointermove',move,{passive:true});
+  hero?.addEventListener('pointerleave',reset,{passive:true});
+</script>
+
 <style>
-  .hero{min-height:calc(100dvh - 66px);display:grid;place-items:center;padding:4rem 0 5rem;border-bottom:1px solid var(--soft-line)}
-  .title-page{max-width:54rem;text-align:center}.series{margin:0;font:500 .78rem var(--font-sans);letter-spacing:.15em;text-transform:uppercase;color:var(--muted-ink)}
-  .rule{width:4.5rem;margin:2.25rem auto;border-top:1px solid var(--ink)}
-  h1{max-width:48rem;margin:0 auto;font-size:clamp(3rem,8vw,6rem);font-weight:500;line-height:1.08;letter-spacing:-.025em}h1 span{display:block}
-  .subtitle{max-width:38rem;margin:2rem auto 0;font-size:clamp(1.1rem,2.3vw,1.35rem);font-style:italic;color:var(--muted-ink)}
-  .author{margin:3.5rem 0 .15rem;font-variant:small-caps;letter-spacing:.08em}.date{margin:0;color:var(--muted-ink);font-size:.92rem}
-  .hero-actions{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:.7rem;margin-top:3.5rem;font-family:var(--font-sans);font-size:.88rem}.hero-actions a{min-height:44px;display:inline-flex;align-items:center}
-  @media(max-width:520px){.hero{min-height:auto;padding-block:5rem}.rule{margin-block:1.75rem}.author{margin-top:2.5rem}.hero-actions{margin-top:2.5rem}}
+  .hero{position:relative;isolation:isolate;min-height:calc(100dvh - 66px);display:grid;align-items:center;overflow:hidden;border-bottom:1px solid var(--soft-line);background:radial-gradient(circle at 76% 44%,color-mix(in srgb,var(--spectrum-blue) 8%,transparent),transparent 29%),var(--paper)}
+  .ambient-grid{position:absolute;inset:0;z-index:-3;opacity:.32;background-image:linear-gradient(var(--soft-line) 1px,transparent 1px),linear-gradient(90deg,var(--soft-line) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(90deg,#000 0,transparent 43%,#000 100%)}
+  .spectrum{position:absolute;z-index:-2;width:32rem;height:9rem;filter:blur(55px);opacity:.12;border-radius:50%;pointer-events:none}.spectrum-a{right:-8rem;top:8%;background:var(--spectrum-blue);transform:rotate(-28deg)}.spectrum-b{right:6%;bottom:2%;background:var(--spectrum-red);transform:rotate(20deg)}
+  .hero-layout{width:100%;display:grid;grid-template-columns:minmax(0,1.04fr) minmax(25rem,.96fr);gap:clamp(2rem,5vw,6rem);align-items:center;padding-block:clamp(4rem,8vw,7rem)}
+  .hero-copy{position:relative;z-index:2}.eyebrow{display:flex;align-items:center;gap:.7rem;margin:0 0 1.7rem;font:500 .69rem/1.5 var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted-ink)}.eyebrow>span{width:.48rem;height:.48rem;border:1px solid var(--spectrum-cyan);border-radius:50%;box-shadow:0 0 0 4px color-mix(in srgb,var(--spectrum-cyan) 12%,transparent),0 0 18px var(--spectrum-cyan);animation:signal 2.4s ease-in-out infinite}
+  h1{max-width:46rem;margin:0;font-size:clamp(3.15rem,6.8vw,6.8rem);font-weight:500;line-height:.98;letter-spacing:-.055em;text-wrap:balance}h1 span{display:block;opacity:0;transform:translateY(1.25rem);animation:line-in .65s cubic-bezier(.2,.8,.2,1) calc(.08s + var(--line)*.1s) forwards}h1 span:last-child{background:linear-gradient(100deg,var(--ink) 10%,var(--spectrum-blue) 51%,var(--spectrum-red) 90%);background-clip:text;color:transparent}
+  .introduction{max-width:35rem;margin:2rem 0 0;font-size:clamp(1.03rem,1.8vw,1.22rem);line-height:1.7;color:var(--muted-ink)}
+  .hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.8rem;margin-top:2.4rem}.hero-actions a{min-height:48px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font:500 .82rem var(--font-sans);transition:transform .2s ease,background .2s ease,color .2s ease,border-color .2s ease}.primary-action{gap:.7rem;padding:.65rem 1rem .65rem 1.25rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper)}.primary-action svg{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-width:1.5;transition:transform .2s ease}.primary-action:hover{background:var(--spectrum-blue);border-color:var(--spectrum-blue);color:#fff;transform:translateY(-2px)}.primary-action:hover svg{transform:translateX(3px)}.secondary-action{padding:.65rem 1rem;color:var(--muted-ink)}.secondary-action:hover{color:var(--ink);transform:translateY(-2px)}
+  .system-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));max-width:40rem;margin:3rem 0 0;padding:1.15rem 0 0;border-top:1px solid var(--soft-line)}.system-status div{display:grid;grid-template-columns:auto 1fr;gap:.65rem;padding-right:1rem}.system-status div+div{padding-left:1rem;border-left:1px solid var(--soft-line)}.system-status dt{font:500 .62rem var(--font-sans);color:var(--spectrum-blue)}.system-status dd{margin:0;font:500 .7rem/1.5 var(--font-sans);letter-spacing:.02em}.system-status dd span{color:var(--muted-ink);font-weight:400}
+  .hero-visual{position:relative;min-height:min(68dvh,42rem);perspective:1100px;perspective-origin:50% 46%}.stage{--pointer-x:0deg;--pointer-y:0deg;--light-x:50%;--light-y:48%;position:absolute;inset:3% -6% 0;transform-style:preserve-3d;transform:rotateX(calc(-7deg + var(--pointer-y))) rotateY(calc(-10deg + var(--pointer-x)));transition:transform .22s cubic-bezier(.2,.75,.2,1);background:radial-gradient(circle at var(--light-x) var(--light-y),color-mix(in srgb,var(--spectrum-cyan) 12%,transparent),transparent 34%)}
+  .grid-plane{position:absolute;left:2%;right:2%;bottom:3%;height:52%;transform:rotateX(68deg) translateZ(-90px);transform-origin:bottom;background-image:linear-gradient(color-mix(in srgb,var(--spectrum-blue) 35%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--spectrum-blue) 35%,transparent) 1px,transparent 1px);background-size:2.2rem 2.2rem;mask-image:linear-gradient(#000,transparent 88%);opacity:.62}
+  .prism{position:absolute;left:50%;top:50%;width:min(88%,34rem);aspect-ratio:1;transform:translate3d(-50%,-51%,70px);filter:drop-shadow(0 2.2rem 2.5rem color-mix(in srgb,var(--spectrum-blue) 18%,transparent));animation:prism-float 5.8s ease-in-out infinite}.prism svg{width:100%;height:100%;overflow:visible}.face{transform-origin:260px 285px;transition:opacity .25s ease}.face-a{animation:face-pulse 4.8s ease-in-out infinite}.face-b{animation:face-pulse 4.8s ease-in-out -1.6s infinite}.face-c{animation:face-pulse 4.8s ease-in-out -3.2s infinite}.wire{fill:none;stroke:color-mix(in srgb,var(--ink) 82%,transparent);stroke-width:1.3}.refraction{fill:none;stroke:var(--spectrum-cyan);stroke-width:1.15;stroke-dasharray:4 9;opacity:.8;animation:spectrum-flow 6s linear infinite}
+  .prism-shadow{position:absolute;left:50%;bottom:10%;width:48%;height:8%;background:#000;filter:blur(24px);border-radius:50%;opacity:.16;transform:translateX(-50%) rotateX(76deg) translateZ(-80px);animation:shadow-breathe 5.8s ease-in-out infinite}
+  .orbit{position:absolute;left:50%;top:50%;border:1px solid color-mix(in srgb,var(--spectrum-blue) 48%,transparent);border-radius:50%;transform-style:preserve-3d}.orbit::before{content:'';position:absolute;left:7%;top:19%;width:.48rem;height:.48rem;border-radius:50%;background:var(--spectrum-cyan);box-shadow:0 0 18px var(--spectrum-cyan)}.orbit-one{width:88%;aspect-ratio:1;transform:translate3d(-50%,-50%,10px) rotateX(70deg) rotateZ(12deg);animation:orbit-one 14s linear infinite}.orbit-two{width:68%;aspect-ratio:1;transform:translate3d(-50%,-50%,25px) rotateY(68deg) rotateZ(-18deg);border-color:color-mix(in srgb,var(--spectrum-red) 42%,transparent);animation:orbit-two 18s linear infinite reverse}
+  .data-card{position:absolute;z-index:4;width:9.5rem;padding:.7rem .8rem;border:1px solid color-mix(in srgb,var(--line-color) 72%,transparent);background:color-mix(in srgb,var(--paper) 82%,transparent);backdrop-filter:blur(12px);box-shadow:0 1rem 2rem #0000000d;transform-style:preserve-3d}.data-card span{display:block;font:500 .54rem var(--font-sans);letter-spacing:.12em;color:var(--muted-ink)}.data-card strong{display:block;margin:.2rem 0;font:500 1rem var(--font-mono)}.data-card i{display:block;width:70%;margin-top:.55rem;border-top:1px solid var(--spectrum-blue)}.card-a{left:0;top:19%;transform:translateZ(105px) rotateY(8deg);animation:card-float 5s ease-in-out infinite}.card-b{right:1%;bottom:20%;transform:translateZ(125px) rotateY(-8deg);animation:card-float 5s ease-in-out -2.5s infinite}.card-b i{border-color:var(--spectrum-red)}
+  .coordinate{position:absolute;font:500 .55rem var(--font-mono);letter-spacing:.08em;color:var(--muted-ink)}.coordinate-x{left:4%;bottom:9%}.coordinate-y{right:3%;top:9%;writing-mode:vertical-rl}.axis-label{position:absolute;left:10%;right:8%;top:50%;display:flex;justify-content:space-between;align-items:center;transform:translateZ(-20px) rotate(-34deg);font:500 .55rem var(--font-mono);letter-spacing:.16em;color:var(--muted-ink)}.axis-label::before{content:'';position:absolute;left:0;right:0;border-top:1px solid var(--soft-line)}.axis-label span,.axis-label b{position:relative;padding:.2rem .5rem;background:var(--paper)}.axis-label b{font-size:1rem;color:var(--spectrum-blue)}
+  .scroll-cue{position:absolute;left:50%;bottom:1.1rem;display:flex;align-items:center;gap:.75rem;transform:translateX(-50%);text-decoration:none;font:500 .55rem var(--font-sans);letter-spacing:.15em;color:var(--muted-ink)}.scroll-cue i{display:block;width:2.7rem;border-top:1px solid currentColor;animation:scroll-line 1.8s ease-in-out infinite;transform-origin:left}
+  @keyframes line-in{to{opacity:1;transform:none}}@keyframes signal{50%{opacity:.42;box-shadow:0 0 0 7px transparent,0 0 7px var(--spectrum-cyan)}}@keyframes prism-float{50%{transform:translate3d(-50%,-54%,82px) rotateZ(.8deg)}}@keyframes shadow-breathe{50%{opacity:.1;transform:translateX(-50%) rotateX(76deg) translateZ(-80px) scale(.84)}}@keyframes face-pulse{50%{opacity:.7}}@keyframes spectrum-flow{to{stroke-dashoffset:-78}}@keyframes orbit-one{to{transform:translate3d(-50%,-50%,10px) rotateX(70deg) rotateZ(372deg)}}@keyframes orbit-two{to{transform:translate3d(-50%,-50%,25px) rotateY(68deg) rotateZ(342deg)}}@keyframes card-float{50%{translate:0 -8px}}@keyframes scroll-line{50%{transform:scaleX(.45);opacity:.5}}
+  @media(max-width:900px){.hero{min-height:auto}.hero-layout{grid-template-columns:1fr;padding-block:5rem 7rem}.hero-copy{max-width:44rem}.hero-visual{min-height:34rem}.stage{inset:0 4%}.scroll-cue{bottom:1.4rem}}
+  @media(max-width:560px){.hero-layout{padding-block:4rem 6rem}.eyebrow{font-size:.6rem}.system-status{grid-template-columns:1fr;gap:.75rem}.system-status div{padding:0}.system-status div+div{padding:0;border:0}.hero-visual{min-height:27rem;margin-inline:-.7rem}.data-card{width:8.2rem}.card-a{left:-2%}.card-b{right:-3%}.coordinate{display:none}.ambient-grid{background-size:32px 32px}.scroll-cue{display:none}}
+  @media(prefers-reduced-motion:reduce){h1 span{opacity:1;transform:none;animation:none}.eyebrow>span,.prism,.face,.refraction,.prism-shadow,.orbit,.data-card,.scroll-cue i{animation:none!important}.stage{transform:none!important;transition:none}.prism{transform:translate3d(-50%,-51%,70px)}}
 </style>
