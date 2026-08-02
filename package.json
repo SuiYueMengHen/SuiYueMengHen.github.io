@@ -25,9 +25,8 @@
     "@astrojs/sitemap": "latest",
     "astro": "latest",
     "computer-modern": "^0.1.3",
-    "katex": "^0.18.1",
     "pagefind": "latest",
-    "rehype-katex": "^7.0.1",
+    "rehype-mathjax": "^7.1.0",
     "remark-math": "^6.0.0"
   },
   "devDependencies": {

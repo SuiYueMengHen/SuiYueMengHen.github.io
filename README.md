@@ -4,7 +4,7 @@
 
 基于 Astro、Markdown/MDX 和 Pagefind 构建的个人静态博客，部署于 GitHub Pages。文章、合集、项目快照、图片、设置和主题源码全部保存在本仓库。
 
-站点采用极简 LaTeX 论文风格，本地打包 Computer Modern 字体，并通过 KaTeX 支持行内公式与块级公式。
+站点采用极简 LaTeX 论文风格，本地打包 Computer Modern 正文字体，并通过 MathJax SVG 支持行内公式与块级公式。
 
 ## 快速开始
 
@@ -63,7 +63,7 @@ $$
 $$
 ```
 
-公式由 KaTeX 在构建阶段渲染，同时输出可访问的 MathML，不需要浏览器运行额外脚本。
+公式由 MathJax 在构建阶段渲染为 SVG，不需要浏览器运行额外脚本；正式网页与 Prism Studio 实时预览共用同一套输出。
 
 ### 章节与目录
 

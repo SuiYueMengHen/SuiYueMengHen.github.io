@@ -65,10 +65,10 @@ test('阅读设置可以修改并保存排版偏好', async ({ page }) => {
   await expect.poll(() => page.evaluate(() => localStorage.getItem('prism-reader-settings'))).not.toContain('smoothScroll');
 });
 
-test('LaTeX 公式同时输出可视公式与 MathML', async ({ page }) => {
-  await page.goto('/blog/designing-with-constraints/');
-  await expect(page.locator('.katex-display')).toHaveCount(1);
-  await expect(page.locator('.katex math').first()).toBeAttached();
+test('LaTeX 公式由 MathJax 输出为 SVG', async ({ page }) => {
+  await page.goto('/blog/maxwell%E6%96%B9%E7%A8%8B%E7%BB%84/');
+  await expect(page.locator('mjx-container[jax="SVG"][display="true"]')).toHaveCount(2);
+  await expect(page.locator('mjx-container[jax="SVG"] svg').first()).toBeAttached();
   const font = await page.locator('.prose').evaluate((element) => getComputedStyle(element).fontFamily);
   expect(font).toContain('Computer Modern Serif');
 });

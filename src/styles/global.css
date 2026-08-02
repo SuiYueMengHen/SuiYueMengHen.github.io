@@ -1,10 +1,6 @@
 @import './tokens.css';
 
 *, *::before, *::after { box-sizing: border-box; }
-/* KaTeX measures fractions, limits and scripts with TeX-style content boxes.
-   A global border-box reset changes those zero-height metric boxes and causes
-   numerators, denominators and limit annotations to overlap. */
-.katex, .katex *, .katex *::before, .katex *::after { box-sizing: content-box; }
 html { scroll-behavior: smooth; background: var(--paper); color: var(--ink); -webkit-overflow-scrolling: touch; }
 body {
   margin: 0;
