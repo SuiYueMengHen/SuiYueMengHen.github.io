@@ -301,7 +301,7 @@ class Studio(QMainWindow):
         self.tree=ContentTree();self.tree.itemSelectionChanged.connect(self.select_item);self.tree.itemClicked.connect(self.expand_tree_item);self.tree.articleMoved.connect(self.apply_article_move);self.tree.orderChanged.connect(self.apply_tree_order);lv.addWidget(self.tree,1)
         create=QHBoxLayout();new_article=QPushButton('新建文章');new_article.setProperty('primary',True);new_article.clicked.connect(self.new_article);new_collection=QPushButton('新建合集');new_collection.clicked.connect(self.new_collection);create.addWidget(new_article);create.addWidget(new_collection);lv.addLayout(create)
         new_category=QPushButton('新建分类');new_category.clicked.connect(self.new_category_from_library);lv.addWidget(new_category)
-        self.add_project_page_button=QPushButton('添加 GitHub 项目到项目页');self.add_project_page_button.clicked.connect(lambda:self.add_project(False));lv.addWidget(self.add_project_page_button)
+        self.add_project_page_button=QPushButton('添加 GitHub 项目到项目页');self.add_project_page_button.setToolTip('粘贴 GitHub 仓库地址即可创建本地项目快照');self.add_project_page_button.clicked.connect(lambda:self.add_project(False));lv.addWidget(self.add_project_page_button)
         trash_actions=QHBoxLayout();delete=QPushButton('移到废纸篓');delete.setProperty('danger',True);delete.clicked.connect(self.delete_article);open_trash=QPushButton('打开废纸篓');open_trash.clicked.connect(self.open_trash);trash_actions.addWidget(delete);trash_actions.addWidget(open_trash);lv.addLayout(trash_actions)
         self.change_detail=QLabel('选择文章后，这里会显示尚未发布的变更。');self.change_detail.setObjectName('changeDetail');self.change_detail.setWordWrap(True);lv.addWidget(self.change_detail);split.addWidget(left)
 
@@ -477,9 +477,9 @@ class Studio(QMainWindow):
         if not self.environment_future.done():return QTimer.singleShot(80,self.finish_environment_check)
         try:status=self.environment_future.result()
         except Exception as error:self.workspace_status.setText('环境检测失败');self.log.appendPlainText(str(error));return
-        publish_ready=status['node'] and status['npm'] and status['git'] and status['repository'];self.gh_ready=status['gh'] and status['gh_auth'];self.project_button.setEnabled(self.gh_ready and bool(self.current_file));self.add_project_page_button.setEnabled(self.gh_ready);self.publish_current.setEnabled(publish_ready and bool(self.selected_path or self.current_file));self.publish_all.setEnabled(publish_ready);missing=[key for key,value in status.items() if not value]
+        publish_ready=status['node'] and status['npm'] and status['git'] and status['repository'];self.gh_ready=status['gh'] and status['gh_auth'];self.project_button.setEnabled(bool(self.current_file));self.add_project_page_button.setEnabled(True);self.publish_current.setEnabled(publish_ready and bool(self.selected_path or self.current_file));self.publish_all.setEnabled(publish_ready);missing=[key for key,value in status.items() if not value]
         self.workspace_status.setText('环境就绪' if not missing else '部分功能不可用');self.log.appendPlainText('环境检查：'+('全部就绪' if not missing else '不可用：'+', '.join(missing)))
-        if not status['gh_auth']:self.log.appendPlainText('gh API 认证无效：仅项目导入被禁用；Git/SSH 发布不受影响。')
+        if not status['gh_auth']:self.log.appendPlainText('gh API 认证无效：仍可点击项目导入查看修复提示；Git/SSH 发布不受影响。')
 
     def start_preview(self):
         if not valid_root(ROOT):self.preview_status.setText('请选择正确的博客工作区');self.workspace_status.setText('工作区不可用');return
@@ -487,6 +487,13 @@ class Studio(QMainWindow):
         if not npm:self.preview_status.setText('缺少 npm');return
         if self.dev.state()!=QProcess.NotRunning:return
         self.preview_ready=False;self.preview_status.setText('正在启动本地预览…');self.port=find_port();self.preview_starting_until=time.monotonic()+10;self.dev.setWorkingDirectory(str(ROOT));self.dev.start(npm,['run','dev','--','--ignore-lock','--host','127.0.0.1','--port',str(self.port)]);QTimer.singleShot(180,lambda:self.wait_for_preview(0))
+
+    def restart_preview(self,path=None):
+        """Rebuild Astro's content index after adding a new collection entry."""
+        if path is not None:self.preview_path=path
+        self.cancel_preview_request();self.preview_navigation+=1;self.preview_patch_generation+=1;self.preview_ready=False;self.preview_loading=False;self.preview_refresh_pending=False;self.preview_status.setText('正在载入新项目预览…')
+        if self.dev.state()!=QProcess.NotRunning:self.dev.terminate();self.dev.waitForFinished(1800)
+        self.start_preview()
 
     def handle_dev_output(self):
         output=bytes(self.dev.readAllStandardOutput()).decode(errors='replace').rstrip()
@@ -787,7 +794,7 @@ class Studio(QMainWindow):
         self.current_file=path;self.selected_kind='article';self.selected_path=path;self.original_metadata=dict(data);self.original_body=body;self.loading=True;self.title_field.setText(str(data.get('title','')));self.description.setPlainText(str(data.get('description','')));category=str(data.get('category','未分类'));category_index=self.category.findText(category)
         if category_index<0:self.category.addItem(category);category_index=self.category.findText(category)
         self.category.setCurrentIndex(max(0,category_index));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.editor.setPlainText(body);self.loading=False;self.update_category_availability()
-        self.preview_expected_version=article_preview_version(data,body);self.set_content_mode('article');self.document_dirty=False;self.loaded_view_state=self.view_state();self.current_title.setText(data.get('title',path.parent.name));self.save_state.setText('草稿 · 不会出现在正式网站' if self.draft.isChecked() else '已保存到本地');self.publish_current.setText('发布当前文章' if self.draft.isChecked() else '上传当前文章');self.publish_current.setEnabled(True);self.project_button.setEnabled(self.gh_ready);changed=self.changes.get(path.parent.name);self.change_detail.setText(f"● 尚未上传 · {changed['status']} · 新增 {changed['added']} 行 / 删除 {changed['deleted']} 行\n"+'\n'.join(changed['files']) if changed else '✓ 当前文章与 GitHub 仓库一致，没有待上传修改。')
+        self.preview_expected_version=article_preview_version(data,body);self.set_content_mode('article');self.document_dirty=False;self.loaded_view_state=self.view_state();self.current_title.setText(data.get('title',path.parent.name));self.save_state.setText('草稿 · 不会出现在正式网站' if self.draft.isChecked() else '已保存到本地');self.publish_current.setText('发布当前文章' if self.draft.isChecked() else '上传当前文章');self.publish_current.setEnabled(True);self.project_button.setEnabled(True);changed=self.changes.get(path.parent.name);self.change_detail.setText(f"● 尚未上传 · {changed['status']} · 新增 {changed['added']} 行 / 删除 {changed['deleted']} 行\n"+'\n'.join(changed['files']) if changed else '✓ 当前文章与 GitHub 仓库一致，没有待上传修改。')
         settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme,'last_article':str(path)});write_app_settings(settings);self.navigate_preview(preview_route('article',path.parent.name))
 
     def expand_tree_item(self,item,_column=0):
@@ -959,20 +966,21 @@ class Studio(QMainWindow):
         if not ok or not repo.strip():return
         try:normalized=normalize_repo(repo)
         except ValueError as error:return QMessageBox.warning(self,'仓库地址无效',str(error))
-        self.project_button.setEnabled(False);self.add_project_page_button.setEnabled(False);self.workspace_status.setText('正在读取 GitHub 项目…');self.project_future=self.executor.submit(import_project,normalized,ROOT);QTimer.singleShot(80,lambda:self.finish_project_import(normalized,embed))
+        self.project_button.setEnabled(False);self.add_project_page_button.setEnabled(False);self.workspace_status.setText('正在读取 GitHub 项目…');self.log.appendPlainText(f'正在导入项目：{normalized}');self.project_future=self.executor.submit(import_project,normalized,ROOT);QTimer.singleShot(80,lambda:self.finish_project_import(normalized,embed))
 
     def finish_project_import(self,repo,embed):
         if not self.project_future or not self.project_future.done():return QTimer.singleShot(80,lambda:self.finish_project_import(repo,embed))
-        self.project_button.setEnabled(self.gh_ready and bool(self.current_file));self.add_project_page_button.setEnabled(self.gh_ready)
+        self.project_button.setEnabled(bool(self.current_file));self.add_project_page_button.setEnabled(True)
         try:path=self.project_future.result()
-        except Exception as error:self.workspace_status.setText('项目导入失败');return QMessageBox.warning(self,'导入失败',str(error))
+        except Exception as error:self.workspace_status.setText('项目导入失败');self.log.appendPlainText(f'项目导入失败：{error}');return QMessageBox.warning(self,'项目导入失败',f'{error}\n\n请确认仓库地址可访问，并在终端执行 gh auth status -h github.com。')
         if embed:
             self.save_timer.stop();self.save_current()
             try:self.current_file=ensure_mdx_article(self.current_file,ROOT);self.selected_path=self.current_file
             except (OSError,ValueError,FileExistsError) as error:return QMessageBox.warning(self,'无法启用项目预览',str(error))
             settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme,'last_article':str(self.current_file)});write_app_settings(settings);self.editor.insertPlainText(f'\n<GitHubProject repo="{repo}" />\n');self.document_dirty=True;self.save_timer.stop();self.save_current()
         self.catalog=content_catalog(ROOT);self.selected_kind='project' if not embed else 'article';self.selected_path=path if not embed else self.current_file;self.load_tree(str(self.selected_path));self.refresh_change_markers();self.workspace_status.setText('项目已保存到本地 · 等待上传');self.log.appendPlainText(f'项目快照已保存：{path.relative_to(ROOT)}')
-        if not embed:QTimer.singleShot(100,lambda:self.select_tree_path(path))
+        if not embed:
+            data=load_project_snapshot(path);self.preview_expected_version=project_preview_version(data);self.restart_preview('/projects/');QTimer.singleShot(250,lambda:self.select_tree_path(path))
         QMessageBox.information(self,'项目已添加',f'{repo} 已加入项目页的本地快照。\n\n上传后网站项目页会自动显示该项目。')
 
     def delete_project(self):

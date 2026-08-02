@@ -3,56 +3,50 @@ import { siteConfig } from '../config/site';
 const titleLines = siteConfig.hero.title.split('\n');
 ---
 <section class="hero" data-prism-hero>
-  <div class="ambient-grid" aria-hidden="true"></div>
-  <div class="spectrum spectrum-a" aria-hidden="true"></div>
-  <div class="spectrum spectrum-b" aria-hidden="true"></div>
-
-  <div class="shell hero-layout">
-    <div class="hero-copy">
+  <div class="hero-sticky">
+    <div class="technical-grid" aria-hidden="true"></div>
+    <div class="hero-shell shell">
       <p class="eyebrow"><span aria-hidden="true"></span>{siteConfig.hero.eyebrow}</p>
-      <h1>{titleLines.map((line, index) => <span style={`--line:${index}`}>{line}</span>)}</h1>
-      <p class="introduction">{siteConfig.hero.introduction}</p>
-      <div class="hero-actions">
-        <a class="primary-action" href="/blog/"><span>进入合集</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" /></svg></a>
-        <a class="secondary-action" href="/archive/">浏览归档 <span aria-hidden="true">↗</span></a>
-      </div>
-      <dl class="system-status" aria-label="网站特性">
-        <div><dt>01</dt><dd>静态发布<br /><span>GitHub Pages</span></dd></div>
-        <div><dt>02</dt><dd>开放格式<br /><span>Markdown / MDX</span></dd></div>
-        <div><dt>03</dt><dd>科学排版<br /><span>MathJax SVG</span></dd></div>
-      </dl>
-    </div>
 
-    <div class="hero-visual" role="img" aria-label="由轨道、坐标网格和光谱切面构成的三维棱镜">
-      <div class="stage" data-prism-stage>
-        <div class="coordinate coordinate-x" aria-hidden="true">X / 128.4</div>
-        <div class="coordinate coordinate-y" aria-hidden="true">Y / 37.2</div>
-        <div class="orbit orbit-one" aria-hidden="true"></div>
-        <div class="orbit orbit-two" aria-hidden="true"></div>
-        <div class="grid-plane" aria-hidden="true"></div>
-        <div class="prism-shadow" aria-hidden="true"></div>
-        <div class="prism" aria-hidden="true">
-          <svg viewBox="0 0 520 520">
+      <div class="composition">
+        <div class="prism-scene" data-prism-stage role="img" aria-label="与标题融合并随滚动折射的三维棱镜">
+          <div class="halo"></div>
+          <div class="orbit orbit-a"></div>
+          <div class="orbit orbit-b"></div>
+          <svg class="prism" viewBox="0 0 560 500">
             <defs>
-              <linearGradient id="face-a" x1="0" y1="0" x2="1" y2="1"><stop stop-color="var(--spectrum-blue)" stop-opacity=".88"/><stop offset="1" stop-color="var(--spectrum-cyan)" stop-opacity=".18"/></linearGradient>
-              <linearGradient id="face-b" x1="1" y1="0" x2="0" y2="1"><stop stop-color="var(--spectrum-red)" stop-opacity=".76"/><stop offset="1" stop-color="var(--spectrum-blue)" stop-opacity=".16"/></linearGradient>
-              <linearGradient id="face-c" x1="0" y1="1" x2="1" y2="0"><stop stop-color="var(--paper)" stop-opacity=".82"/><stop offset="1" stop-color="var(--spectrum-cyan)" stop-opacity=".3"/></linearGradient>
+              <linearGradient id="prism-left" x1="0" y1="0" x2="1" y2="1"><stop stop-color="var(--spectrum-blue)" stop-opacity=".7"/><stop offset="1" stop-color="var(--paper)" stop-opacity=".12"/></linearGradient>
+              <linearGradient id="prism-right" x1="1" y1="0" x2="0" y2="1"><stop stop-color="var(--spectrum-red)" stop-opacity=".55"/><stop offset="1" stop-color="var(--spectrum-cyan)" stop-opacity=".12"/></linearGradient>
+              <linearGradient id="spectrum-line" x1="0" y1="0" x2="1" y2="0"><stop stop-color="var(--spectrum-blue)"/><stop offset=".52" stop-color="var(--spectrum-cyan)"/><stop offset="1" stop-color="var(--spectrum-red)"/></linearGradient>
             </defs>
-            <path class="face face-a" d="M260 48 448 388 260 315Z" fill="url(#face-a)"/>
-            <path class="face face-b" d="M260 48 72 388 260 315Z" fill="url(#face-b)"/>
-            <path class="face face-c" d="M72 388 448 388 260 315Z" fill="url(#face-c)"/>
-            <path class="wire" d="M260 48 448 388H72L260 48Zm0 0v267m188 73-188-73L72 388"/>
-            <path class="refraction" d="m130 297 130-72 144 62M116 321l144-79 158 67M101 346l159-87 171 74"/>
+            <path class="face face-left" d="M280 46 87 410 280 329Z" fill="url(#prism-left)"/>
+            <path class="face face-right" d="M280 46 473 410 280 329Z" fill="url(#prism-right)"/>
+            <path class="face face-base" d="M87 410h386l-193-81Z"/>
+            <path class="wire" d="M280 46 473 410H87L280 46Zm0 0v283m193 81-193-81-193 81"/>
+            <g class="rays">
+              <path d="M22 282 280 242 538 232"/>
+              <path d="M22 294 280 252 538 257"/>
+              <path d="M22 306 280 262 538 282"/>
+            </g>
           </svg>
+          <div class="axis axis-x">X · REFRACTION</div>
+          <div class="axis axis-y">Y · λ 450—700</div>
         </div>
-        <div class="data-card card-a" aria-hidden="true"><span>REFRACTION</span><strong>42.73°</strong><i></i></div>
-        <div class="data-card card-b" aria-hidden="true"><span>SPECTRUM</span><strong>λ 450—700</strong><i></i></div>
-        <div class="axis-label" aria-hidden="true"><span>PRISM / NOTES</span><b>∞</b></div>
+
+        <h1>{titleLines.map((line, index) => <span class:list={['title-line', `line-${index + 1}`]}>{line}</span>)}</h1>
       </div>
+
+      <div class="hero-foot">
+        <p>{siteConfig.hero.introduction}</p>
+        <nav class="hero-actions" aria-label="首页快捷入口">
+          <a class="primary-action" href="/blog/">进入合集 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" /></svg></a>
+          <a href="/archive/">浏览归档</a>
+        </nav>
+      </div>
+
+      <div class="hero-index" aria-hidden="true"><span>PRISM NOTES</span><i></i><span>SCROLL · 01</span></div>
     </div>
   </div>
-
-  <a class="scroll-cue" href="#latest" aria-label="继续浏览首页内容"><span>SCROLL</span><i aria-hidden="true"></i></a>
 </section>
 
 <script>
@@ -60,40 +54,52 @@ const titleLines = siteConfig.hero.title.split('\n');
   const stage=hero?.querySelector<HTMLElement>('[data-prism-stage]');
   const reduce=matchMedia('(prefers-reduced-motion: reduce)');
   const finePointer=matchMedia('(pointer: fine)');
-  let frame=0;
-  const move=(event:PointerEvent)=>{
-    if(!hero||!stage||reduce.matches||!finePointer.matches)return;
+  let pointerX=0,pointerY=0,frame=0;
+  const render=()=>{
+    frame=0;if(!hero||reduce.matches)return;
     const rect=hero.getBoundingClientRect();
-    const x=Math.max(-1,Math.min(1,(event.clientX-rect.left)/rect.width*2-1));
-    const y=Math.max(-1,Math.min(1,(event.clientY-rect.top)/rect.height*2-1));
-    cancelAnimationFrame(frame);
-    frame=requestAnimationFrame(()=>{stage.style.setProperty('--pointer-x',`${x*7}deg`);stage.style.setProperty('--pointer-y',`${y*-5}deg`);stage.style.setProperty('--light-x',`${50+x*18}%`);stage.style.setProperty('--light-y',`${48+y*14}%`)});
+    const travel=Math.max(1,rect.height-innerHeight);
+    const progress=Math.max(0,Math.min(1,-rect.top/travel));
+    hero.style.setProperty('--scroll-y',`${progress*-72}px`);
+    hero.style.setProperty('--scroll-rotate',`${progress*34}deg`);
+    hero.style.setProperty('--scroll-tilt',`${progress*-7}deg`);
+    hero.style.setProperty('--scroll-scale',String(1+progress*.16));
+    hero.style.setProperty('--copy-y',`${progress*-24}px`);
+    hero.style.setProperty('--copy-opacity',String(1-progress*.62));
+    hero.style.setProperty('--ray-shift',`${progress*52}px`);
+    stage?.style.setProperty('--pointer-x',`${pointerX*5}deg`);
+    stage?.style.setProperty('--pointer-y',`${pointerY*-4}deg`);
   };
-  const reset=()=>{if(!stage)return;stage.style.setProperty('--pointer-x','0deg');stage.style.setProperty('--pointer-y','0deg');stage.style.setProperty('--light-x','50%');stage.style.setProperty('--light-y','48%')};
-  hero?.addEventListener('pointermove',move,{passive:true});
-  hero?.addEventListener('pointerleave',reset,{passive:true});
+  const schedule=()=>{if(!frame)frame=requestAnimationFrame(render)};
+  const move=(event:PointerEvent)=>{
+    if(!hero||reduce.matches||!finePointer.matches)return;
+    const rect=hero.getBoundingClientRect();
+    pointerX=Math.max(-1,Math.min(1,(event.clientX-rect.left)/rect.width*2-1));
+    pointerY=Math.max(-1,Math.min(1,(event.clientY-rect.top)/Math.min(rect.height,innerHeight)*2-1));schedule();
+  };
+  const reset=()=>{pointerX=0;pointerY=0;schedule()};
+  addEventListener('scroll',schedule,{passive:true});addEventListener('resize',schedule,{passive:true});
+  hero?.addEventListener('pointermove',move,{passive:true});hero?.addEventListener('pointerleave',reset,{passive:true});
+  reduce.addEventListener('change',schedule);schedule();
 </script>
 
 <style>
-  .hero{position:relative;isolation:isolate;min-height:calc(100dvh - 66px);display:grid;align-items:center;overflow:hidden;border-bottom:1px solid var(--soft-line);background:radial-gradient(circle at 76% 44%,color-mix(in srgb,var(--spectrum-blue) 8%,transparent),transparent 29%),var(--paper)}
-  .ambient-grid{position:absolute;inset:0;z-index:-3;opacity:.32;background-image:linear-gradient(var(--soft-line) 1px,transparent 1px),linear-gradient(90deg,var(--soft-line) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(90deg,#000 0,transparent 43%,#000 100%)}
-  .spectrum{position:absolute;z-index:-2;width:32rem;height:9rem;filter:blur(55px);opacity:.12;border-radius:50%;pointer-events:none}.spectrum-a{right:-8rem;top:8%;background:var(--spectrum-blue);transform:rotate(-28deg)}.spectrum-b{right:6%;bottom:2%;background:var(--spectrum-red);transform:rotate(20deg)}
-  .hero-layout{width:100%;display:grid;grid-template-columns:minmax(0,1.04fr) minmax(25rem,.96fr);gap:clamp(2rem,5vw,6rem);align-items:center;padding-block:clamp(4rem,8vw,7rem)}
-  .hero-copy{position:relative;z-index:2}.eyebrow{display:flex;align-items:center;gap:.7rem;margin:0 0 1.7rem;font:500 .69rem/1.5 var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted-ink)}.eyebrow>span{width:.48rem;height:.48rem;border:1px solid var(--spectrum-cyan);border-radius:50%;box-shadow:0 0 0 4px color-mix(in srgb,var(--spectrum-cyan) 12%,transparent),0 0 18px var(--spectrum-cyan);animation:signal 2.4s ease-in-out infinite}
-  h1{max-width:46rem;margin:0;font-size:clamp(3.15rem,6.8vw,6.8rem);font-weight:500;line-height:.98;letter-spacing:-.055em;text-wrap:balance}h1 span{display:block;opacity:0;transform:translateY(1.25rem);animation:line-in .65s cubic-bezier(.2,.8,.2,1) calc(.08s + var(--line)*.1s) forwards}h1 span:last-child{background:linear-gradient(100deg,var(--ink) 10%,var(--spectrum-blue) 51%,var(--spectrum-red) 90%);background-clip:text;color:transparent}
-  .introduction{max-width:35rem;margin:2rem 0 0;font-size:clamp(1.03rem,1.8vw,1.22rem);line-height:1.7;color:var(--muted-ink)}
-  .hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.8rem;margin-top:2.4rem}.hero-actions a{min-height:48px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font:500 .82rem var(--font-sans);transition:transform .2s ease,background .2s ease,color .2s ease,border-color .2s ease}.primary-action{gap:.7rem;padding:.65rem 1rem .65rem 1.25rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper)}.primary-action svg{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-width:1.5;transition:transform .2s ease}.primary-action:hover{background:var(--spectrum-blue);border-color:var(--spectrum-blue);color:#fff;transform:translateY(-2px)}.primary-action:hover svg{transform:translateX(3px)}.secondary-action{padding:.65rem 1rem;color:var(--muted-ink)}.secondary-action:hover{color:var(--ink);transform:translateY(-2px)}
-  .system-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));max-width:40rem;margin:3rem 0 0;padding:1.15rem 0 0;border-top:1px solid var(--soft-line)}.system-status div{display:grid;grid-template-columns:auto 1fr;gap:.65rem;padding-right:1rem}.system-status div+div{padding-left:1rem;border-left:1px solid var(--soft-line)}.system-status dt{font:500 .62rem var(--font-sans);color:var(--spectrum-blue)}.system-status dd{margin:0;font:500 .7rem/1.5 var(--font-sans);letter-spacing:.02em}.system-status dd span{color:var(--muted-ink);font-weight:400}
-  .hero-visual{position:relative;min-height:min(68dvh,42rem);perspective:1100px;perspective-origin:50% 46%}.stage{--pointer-x:0deg;--pointer-y:0deg;--light-x:50%;--light-y:48%;position:absolute;inset:3% -6% 0;transform-style:preserve-3d;transform:rotateX(calc(-7deg + var(--pointer-y))) rotateY(calc(-10deg + var(--pointer-x)));transition:transform .22s cubic-bezier(.2,.75,.2,1);background:radial-gradient(circle at var(--light-x) var(--light-y),color-mix(in srgb,var(--spectrum-cyan) 12%,transparent),transparent 34%)}
-  .grid-plane{position:absolute;left:2%;right:2%;bottom:3%;height:52%;transform:rotateX(68deg) translateZ(-90px);transform-origin:bottom;background-image:linear-gradient(color-mix(in srgb,var(--spectrum-blue) 35%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--spectrum-blue) 35%,transparent) 1px,transparent 1px);background-size:2.2rem 2.2rem;mask-image:linear-gradient(#000,transparent 88%);opacity:.62}
-  .prism{position:absolute;left:50%;top:50%;width:min(88%,34rem);aspect-ratio:1;transform:translate3d(-50%,-51%,70px);filter:drop-shadow(0 2.2rem 2.5rem color-mix(in srgb,var(--spectrum-blue) 18%,transparent));animation:prism-float 5.8s ease-in-out infinite}.prism svg{width:100%;height:100%;overflow:visible}.face{transform-origin:260px 285px;transition:opacity .25s ease}.face-a{animation:face-pulse 4.8s ease-in-out infinite}.face-b{animation:face-pulse 4.8s ease-in-out -1.6s infinite}.face-c{animation:face-pulse 4.8s ease-in-out -3.2s infinite}.wire{fill:none;stroke:color-mix(in srgb,var(--ink) 82%,transparent);stroke-width:1.3}.refraction{fill:none;stroke:var(--spectrum-cyan);stroke-width:1.15;stroke-dasharray:4 9;opacity:.8;animation:spectrum-flow 6s linear infinite}
-  .prism-shadow{position:absolute;left:50%;bottom:10%;width:48%;height:8%;background:#000;filter:blur(24px);border-radius:50%;opacity:.16;transform:translateX(-50%) rotateX(76deg) translateZ(-80px);animation:shadow-breathe 5.8s ease-in-out infinite}
-  .orbit{position:absolute;left:50%;top:50%;border:1px solid color-mix(in srgb,var(--spectrum-blue) 48%,transparent);border-radius:50%;transform-style:preserve-3d}.orbit::before{content:'';position:absolute;left:7%;top:19%;width:.48rem;height:.48rem;border-radius:50%;background:var(--spectrum-cyan);box-shadow:0 0 18px var(--spectrum-cyan)}.orbit-one{width:88%;aspect-ratio:1;transform:translate3d(-50%,-50%,10px) rotateX(70deg) rotateZ(12deg);animation:orbit-one 14s linear infinite}.orbit-two{width:68%;aspect-ratio:1;transform:translate3d(-50%,-50%,25px) rotateY(68deg) rotateZ(-18deg);border-color:color-mix(in srgb,var(--spectrum-red) 42%,transparent);animation:orbit-two 18s linear infinite reverse}
-  .data-card{position:absolute;z-index:4;width:9.5rem;padding:.7rem .8rem;border:1px solid color-mix(in srgb,var(--line-color) 72%,transparent);background:color-mix(in srgb,var(--paper) 82%,transparent);backdrop-filter:blur(12px);box-shadow:0 1rem 2rem #0000000d;transform-style:preserve-3d}.data-card span{display:block;font:500 .54rem var(--font-sans);letter-spacing:.12em;color:var(--muted-ink)}.data-card strong{display:block;margin:.2rem 0;font:500 1rem var(--font-mono)}.data-card i{display:block;width:70%;margin-top:.55rem;border-top:1px solid var(--spectrum-blue)}.card-a{left:0;top:19%;transform:translateZ(105px) rotateY(8deg);animation:card-float 5s ease-in-out infinite}.card-b{right:1%;bottom:20%;transform:translateZ(125px) rotateY(-8deg);animation:card-float 5s ease-in-out -2.5s infinite}.card-b i{border-color:var(--spectrum-red)}
-  .coordinate{position:absolute;font:500 .55rem var(--font-mono);letter-spacing:.08em;color:var(--muted-ink)}.coordinate-x{left:4%;bottom:9%}.coordinate-y{right:3%;top:9%;writing-mode:vertical-rl}.axis-label{position:absolute;left:10%;right:8%;top:50%;display:flex;justify-content:space-between;align-items:center;transform:translateZ(-20px) rotate(-34deg);font:500 .55rem var(--font-mono);letter-spacing:.16em;color:var(--muted-ink)}.axis-label::before{content:'';position:absolute;left:0;right:0;border-top:1px solid var(--soft-line)}.axis-label span,.axis-label b{position:relative;padding:.2rem .5rem;background:var(--paper)}.axis-label b{font-size:1rem;color:var(--spectrum-blue)}
-  .scroll-cue{position:absolute;left:50%;bottom:1.1rem;display:flex;align-items:center;gap:.75rem;transform:translateX(-50%);text-decoration:none;font:500 .55rem var(--font-sans);letter-spacing:.15em;color:var(--muted-ink)}.scroll-cue i{display:block;width:2.7rem;border-top:1px solid currentColor;animation:scroll-line 1.8s ease-in-out infinite;transform-origin:left}
-  @keyframes line-in{to{opacity:1;transform:none}}@keyframes signal{50%{opacity:.42;box-shadow:0 0 0 7px transparent,0 0 7px var(--spectrum-cyan)}}@keyframes prism-float{50%{transform:translate3d(-50%,-54%,82px) rotateZ(.8deg)}}@keyframes shadow-breathe{50%{opacity:.1;transform:translateX(-50%) rotateX(76deg) translateZ(-80px) scale(.84)}}@keyframes face-pulse{50%{opacity:.7}}@keyframes spectrum-flow{to{stroke-dashoffset:-78}}@keyframes orbit-one{to{transform:translate3d(-50%,-50%,10px) rotateX(70deg) rotateZ(372deg)}}@keyframes orbit-two{to{transform:translate3d(-50%,-50%,25px) rotateY(68deg) rotateZ(342deg)}}@keyframes card-float{50%{translate:0 -8px}}@keyframes scroll-line{50%{transform:scaleX(.45);opacity:.5}}
-  @media(max-width:900px){.hero{min-height:auto}.hero-layout{grid-template-columns:1fr;padding-block:5rem 7rem}.hero-copy{max-width:44rem}.hero-visual{min-height:34rem}.stage{inset:0 4%}.scroll-cue{bottom:1.4rem}}
-  @media(max-width:560px){.hero-layout{padding-block:4rem 6rem}.eyebrow{font-size:.6rem}.system-status{grid-template-columns:1fr;gap:.75rem}.system-status div{padding:0}.system-status div+div{padding:0;border:0}.hero-visual{min-height:27rem;margin-inline:-.7rem}.data-card{width:8.2rem}.card-a{left:-2%}.card-b{right:-3%}.coordinate{display:none}.ambient-grid{background-size:32px 32px}.scroll-cue{display:none}}
-  @media(prefers-reduced-motion:reduce){h1 span{opacity:1;transform:none;animation:none}.eyebrow>span,.prism,.face,.refraction,.prism-shadow,.orbit,.data-card,.scroll-cue i{animation:none!important}.stage{transform:none!important;transition:none}.prism{transform:translate3d(-50%,-51%,70px)}}
+  .hero{--scroll-y:0px;--scroll-rotate:0deg;--scroll-tilt:0deg;--scroll-scale:1;--copy-y:0px;--copy-opacity:1;--ray-shift:0px;position:relative;height:145dvh;min-height:58rem;border-bottom:1px solid var(--soft-line);background:var(--paper)}
+  .hero-sticky{position:sticky;top:66px;height:calc(100dvh - 66px);min-height:42rem;display:grid;place-items:center;overflow:hidden;isolation:isolate}
+  .technical-grid{position:absolute;inset:0;z-index:-3;background-image:linear-gradient(color-mix(in srgb,var(--line-color) 55%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--line-color) 55%,transparent) 1px,transparent 1px);background-size:clamp(36px,4vw,64px) clamp(36px,4vw,64px);mask-image:radial-gradient(ellipse 62% 72% at 50% 47%,#000 10%,transparent 76%);opacity:.5;transform:translate3d(0,calc(var(--scroll-y)*-.18),0)}
+  .hero-shell{width:100%;display:grid;justify-items:center;align-content:center;padding-block:clamp(2rem,5vh,4rem);text-align:center}
+  .eyebrow{z-index:5;display:flex;align-items:center;justify-content:center;gap:.65rem;margin:0 0 clamp(1.5rem,3vh,2.5rem);font:500 .64rem/1.5 var(--font-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-ink);transform:translate3d(0,var(--copy-y),0);opacity:var(--copy-opacity)}.eyebrow span{width:.42rem;height:.42rem;border:1px solid var(--spectrum-cyan);border-radius:50%;box-shadow:0 0 12px color-mix(in srgb,var(--spectrum-cyan) 55%,transparent)}
+  .composition{position:relative;width:min(100%,72rem);min-height:clamp(19rem,48vh,34rem);display:grid;place-items:center;perspective:1200px;transform-style:preserve-3d}
+  h1{position:relative;z-index:3;width:100%;margin:0;display:grid;gap:clamp(3.5rem,10vh,7.2rem);font-size:clamp(3.15rem,7.5vw,7.7rem);font-weight:500;line-height:.9;letter-spacing:-.058em;text-wrap:balance;pointer-events:none;transform:translate3d(0,var(--copy-y),55px);opacity:var(--copy-opacity)}
+  .title-line{display:block}.line-1{transform:translateX(clamp(-2rem,-3vw,-.4rem))}.line-2{transform:translateX(clamp(.4rem,3vw,2rem));background:linear-gradient(95deg,var(--ink) 20%,var(--spectrum-blue) 50%,var(--ink) 80%);background-clip:text;color:transparent}
+  .prism-scene{--pointer-x:0deg;--pointer-y:0deg;position:absolute;inset:0;z-index:2;width:min(55vw,34rem);aspect-ratio:1.12;margin:auto;transform-style:preserve-3d;transform:translate3d(0,var(--scroll-y),20px) rotateX(calc(-4deg + var(--pointer-y) + var(--scroll-tilt))) rotateY(calc(var(--pointer-x) + var(--scroll-rotate))) scale(var(--scroll-scale));will-change:transform}
+  .prism{position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 2rem 2rem color-mix(in srgb,var(--spectrum-blue) 15%,transparent))}.face{opacity:.54}.face-base{fill:color-mix(in srgb,var(--spectrum-cyan) 18%,transparent)}.wire{fill:none;stroke:color-mix(in srgb,var(--ink) 76%,transparent);stroke-width:1.15}.rays{fill:none;stroke:url(#spectrum-line);stroke-width:1.2;stroke-dasharray:5 9;transform:translateX(var(--ray-shift));opacity:.72}
+  .halo{position:absolute;inset:20%;border-radius:50%;background:color-mix(in srgb,var(--spectrum-blue) 11%,transparent);filter:blur(42px);transform:translateZ(-45px)}
+  .orbit{position:absolute;inset:8%;border:1px solid color-mix(in srgb,var(--spectrum-blue) 33%,transparent);border-radius:50%;transform-style:preserve-3d}.orbit::after{content:'';position:absolute;left:14%;top:10%;width:.4rem;height:.4rem;border-radius:50%;background:var(--spectrum-cyan);box-shadow:0 0 12px var(--spectrum-cyan)}.orbit-a{transform:translateZ(-12px) rotateX(69deg) rotateZ(calc(18deg + var(--scroll-rotate)))}.orbit-b{inset:18%;border-color:color-mix(in srgb,var(--spectrum-red) 30%,transparent);transform:translateZ(18px) rotateY(70deg) rotateZ(calc(-10deg - var(--scroll-rotate)))}
+  .axis{position:absolute;font:500 .52rem var(--font-mono);letter-spacing:.12em;color:var(--muted-ink)}.axis-x{left:-2%;bottom:14%}.axis-y{right:0;top:10%;writing-mode:vertical-rl}
+  .hero-foot{z-index:5;width:min(100%,48rem);display:grid;grid-template-columns:minmax(0,1.4fr) auto;align-items:center;gap:2rem;margin-top:clamp(1.1rem,2vh,2rem);text-align:left;transform:translate3d(0,var(--copy-y),0);opacity:var(--copy-opacity)}.hero-foot>p{margin:0;color:var(--muted-ink);font-size:clamp(.96rem,1.5vw,1.08rem);line-height:1.65}.hero-actions{display:flex;align-items:center;gap:.5rem}.hero-actions a{min-height:46px;display:inline-flex;align-items:center;justify-content:center;padding:.55rem .9rem;text-decoration:none;font:500 .78rem var(--font-sans);white-space:nowrap;transition:transform .2s ease,color .2s ease,background .2s ease}.hero-actions a:hover{transform:translateY(-2px)}.primary-action{gap:.6rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper)}.primary-action svg{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:1.5}
+  .hero-index{position:absolute;left:var(--shell-pad);right:var(--shell-pad);bottom:1rem;display:flex;align-items:center;gap:.8rem;font:500 .52rem var(--font-sans);letter-spacing:.14em;color:var(--muted-ink);opacity:calc(.3 + var(--copy-opacity)*.7)}.hero-index i{flex:1;border-top:1px solid var(--soft-line)}
+  @media(max-width:760px){.hero{height:128dvh;min-height:48rem}.hero-sticky{min-height:38rem}.composition{min-height:23rem}.prism-scene{width:min(88vw,29rem)}h1{gap:5rem;font-size:clamp(3.1rem,13vw,5.2rem)}.line-1,.line-2{transform:none}.hero-foot{grid-template-columns:1fr;justify-items:center;gap:1rem;text-align:center}.hero-actions{justify-content:center}.axis{display:none}}
+  @media(max-width:430px){.eyebrow{max-width:18rem}.composition{min-height:21rem}h1{gap:4.5rem}.hero-foot>p{max-width:21rem}.hero-actions a{padding-inline:.7rem}.hero-index{display:none}}
+  @media(prefers-reduced-motion:reduce){.hero{height:auto;min-height:calc(100dvh - 66px)}.hero-sticky{position:relative;top:0}.technical-grid,.eyebrow,h1,.hero-foot,.prism-scene{transform:none!important;opacity:1!important}.rays{transform:none}.orbit-a{transform:translateZ(-12px) rotateX(69deg) rotateZ(18deg)}.orbit-b{transform:translateZ(18px) rotateY(70deg) rotateZ(-10deg)}}
 </style>

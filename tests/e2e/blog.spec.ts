@@ -23,6 +23,16 @@ test('主题切换持久化且减少动态效果时 Hero 静止', async ({ page 
   await expect.poll(() => page.evaluate(() => localStorage.getItem('prism-theme'))).toMatch(/light|dark/);
 });
 
+test('Hero 的标题与棱镜共享滚动驱动的空间舞台', async ({ page }) => {
+  await page.goto('/');
+  const stage = page.locator('[data-prism-stage]');
+  const before = await stage.evaluate((element) => getComputedStyle(element).transform);
+  await page.evaluate(() => scrollTo(0, Math.round(innerHeight * .35)));
+  await expect.poll(() => stage.evaluate((element) => getComputedStyle(element).transform)).not.toBe(before);
+  await expect(page.locator('[data-prism-hero] h1')).toBeVisible();
+  await expect(stage).toBeVisible();
+});
+
 test('暗色模式代码块使用独立高对比度配色', async ({ page }) => {
   await page.goto('/blog/markdown%E5%85%A5%E9%97%A8%E6%95%99%E7%A8%8B/');
   await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });

@@ -41,6 +41,9 @@ class CoreTests(unittest.TestCase):
             root=Path(folder);target=root/'src/content/projects/o--r.yaml';target.parent.mkdir(parents=True);target.write_text('old','utf-8')
             def runner(command,**kwargs):return Result(0) if command[1:3]==['auth','status'] else Result(1,err='offline')
             with self.assertRaises(RuntimeError):import_project('o/r',root,runner);self.assertEqual(target.read_text('utf-8'),'old')
+    def test_project_url_normalization_accepts_browser_urls(self):
+        from core import normalize_repo
+        self.assertEqual(normalize_repo('https://github.com/OpenAI/codex.git/?tab=readme#top'),'OpenAI/codex')
     def test_project_snapshot_edit_roundtrip(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);path=root/'src/content/projects/o--r.yaml';data={'repo':'o/r','title':'Tool','description':'note','topics':['cli','cli',' mac '],'stars':2,'syncedAt':'2026-01-01T00:00:00Z'}

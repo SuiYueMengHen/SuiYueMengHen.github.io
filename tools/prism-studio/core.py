@@ -70,7 +70,7 @@ def copy_images(files:list[Path],article_dir:Path)->list[Path]:
     return copied
 
 def normalize_repo(value:str)->str:
-    value=re.sub(r'^https?://github\.com/','',value.strip(),flags=re.I).removesuffix('.git').rstrip('/')
+    value=re.sub(r'^https?://github\.com/','',value.strip(),flags=re.I).split('?',1)[0].split('#',1)[0].rstrip('/').removesuffix('.git')
     if not re.match(r'^[\w.-]+/[\w.-]+$',value):raise ValueError('请输入 owner/repo 或完整 GitHub 仓库 URL')
     return value
 
@@ -80,10 +80,11 @@ def import_project(repo_value:str,repo_root:Path,runner:Callable=subprocess.run)
     repo=normalize_repo(repo_value)
     gh=resolve_command('gh')
     if not gh:raise RuntimeError('未找到 GitHub CLI。请先安装 gh，或从终端启动 Prism Studio。')
-    try:auth=runner([gh,'auth','status','-h','github.com'],cwd=repo_root,capture_output=True,text=True,timeout=10)
+    environment=command_environment()
+    try:auth=runner([gh,'auth','status','-h','github.com'],cwd=repo_root,capture_output=True,text=True,timeout=10,env=environment)
     except subprocess.TimeoutExpired:raise RuntimeError('GitHub CLI 认证检查超时。请检查网络后重试。')
     if auth.returncode:raise RuntimeError('GitHub CLI 登录无效。请运行：gh auth login -h github.com')
-    try:result=runner([gh,'api',f'repos/{repo}'],cwd=repo_root,capture_output=True,text=True,timeout=15)
+    try:result=runner([gh,'api',f'repos/{repo}'],cwd=repo_root,capture_output=True,text=True,timeout=15,env=environment)
     except subprocess.TimeoutExpired:raise RuntimeError('GitHub API 请求超时；原快照未更改。')
     if result.returncode:raise RuntimeError(result.stderr.strip() or 'GitHub 项目导入失败；原快照未更改。')
     data=json.loads(result.stdout);target=repo_root/'src/content/projects'/f"{repo.lower().replace('/','--')}.yaml"
@@ -144,8 +145,9 @@ def environment_status(repo_root:Path,runner:Callable=subprocess.run)->dict[str,
     tools={name:resolve_command(name) for name in ('node','npm','git','gh')};status={name:bool(path) for name,path in tools.items()};status['repository']=(repo_root/'.git').exists()
     if status['gh']:
         try:
-            auth=runner([tools['gh'],'auth','status','-h','github.com'],cwd=repo_root,capture_output=True,timeout=6)
-            api=runner([tools['gh'],'api','user','--jq','.login'],cwd=repo_root,capture_output=True,timeout=8)
+            environment=command_environment()
+            auth=runner([tools['gh'],'auth','status','-h','github.com'],cwd=repo_root,capture_output=True,text=True,timeout=6,env=environment)
+            api=runner([tools['gh'],'api','user','--jq','.login'],cwd=repo_root,capture_output=True,text=True,timeout=8,env=environment)
             status['gh_auth']=auth.returncode==0 and api.returncode==0
         except subprocess.TimeoutExpired:status['gh_auth']=False
     else:status['gh_auth']=False
