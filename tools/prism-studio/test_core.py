@@ -8,7 +8,8 @@ class Result:
 class CoreTests(unittest.TestCase):
     def test_preview_fingerprints_match_web_runtime(self):
         article={'title':'棱镜','description':'清晰','category':'写作','tags':['A','中文'],'collection':None,'collectionOrder':None,'featured':True,'draft':False,'canonical':None};project={'repo':'o/r','title':'工具','description':'说明','topics':['cli','mac'],'homepage':None,'cover':None,'coverAlt':None,'featured':False,'order':2}
-        self.assertEqual(article_preview_version(article,'正文\r\n'),'246cddcc998b9d18ebd1257199f576779ddd11f39a957af0c3578b7f57c4a72e');self.assertEqual(project_preview_version(project),'6d6f99f07afa98739f4307b830b10663d9c5d75eb99aa562913b08cc4d736482')
+        self.assertEqual(article_preview_version(article,'正文\r\n'),'6634a4746ee55afa94e4b6aa230dc0031a95e4cfd83b716b788352fba1b8e732');self.assertEqual(project_preview_version(project),'6d6f99f07afa98739f4307b830b10663d9c5d75eb99aa562913b08cc4d736482')
+        self.assertNotEqual(article_preview_version(article,'正文'),article_preview_version({**article,'showSideToc':False},'正文'))
     def test_frontmatter_roundtrip(self):
         data={'title':'棱镜','tags':['写作','工具'],'draft':True};source=serialize_frontmatter(data,'正文\n');parsed,body=split_frontmatter(source);self.assertEqual(parsed['tags'],data['tags']);self.assertEqual(body,'正文\n')
     def test_atomic_save_creates_first_backup(self):
@@ -27,7 +28,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(delete_trash_entries([trashed],root),1);self.assertEqual(list_trash(root),[])
     def test_create_article_reuses_orphan_slug_directory(self):
         with tempfile.TemporaryDirectory() as folder:
-            root=Path(folder);orphan=root/'src/content/blog/demo2';orphan.mkdir(parents=True);(orphan/'unused.png').write_bytes(b'image');created=create_article(root,'demo2');self.assertEqual(created,orphan/'index.md');self.assertTrue((orphan/'unused.png').exists())
+            root=Path(folder);orphan=root/'src/content/blog/demo2';orphan.mkdir(parents=True);(orphan/'unused.png').write_bytes(b'image');created=create_article(root,'demo2');self.assertEqual(created,orphan/'index.md');self.assertTrue((orphan/'unused.png').exists());data,_=split_frontmatter(created.read_text('utf-8'));self.assertTrue(data['autoNumbering']);self.assertTrue(data['showContents']);self.assertTrue(data['showSideToc'])
     def test_collection_can_empty_and_refill_without_losing_articles(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);create_collection(root,'示例合集','用于测试空合集重新加入文章',slug='book');first=create_article(root,'第一篇');second=create_article(root,'第二篇')

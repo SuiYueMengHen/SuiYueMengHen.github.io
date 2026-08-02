@@ -47,11 +47,16 @@ collection: digital-garden # 可选：src/content/collections 中的 slug
 collectionOrder: 1 # 加入合集时必填，正整数且不可重复
 featured: false
 draft: true
+autoNumbering: true # 自动显示“第 1 章 / §1.1 / §1.1.1”
+showContents: true # 显示文章开头的书籍式目录
+showSideToc: true # 显示跟随阅读位置的侧边目录
 canonical: "https://example.com/original" # 可选
 ---
 ```
 
 运行 `npm run dev` 可以预览草稿。生产构建会自动排除 `draft: true` 的文章。
+
+上述三个阅读结构开关可以在 Prism Studio 的“文章信息 → 阅读结构”中独立调整。新文章和未填写这些字段的旧文章均默认全部开启；设置保存在文章 frontmatter 中，会随文章一起上传。
 
 ### 插入数学公式
 

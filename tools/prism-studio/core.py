@@ -42,7 +42,7 @@ def _preview_flag(value)->str:return 'true' if value else 'false'
 def _preview_digest(parts:list[str])->str:return hashlib.sha256('\x1f'.join(parts).encode('utf-8')).hexdigest()
 
 def article_preview_version(data:dict,body:str='')->str:
-    return _preview_digest([_preview_text(data.get('title')),_preview_text(data.get('description')),_preview_text(data.get('category')),'\x1e'.join(map(_preview_text,data.get('tags',[]))),_preview_text(data.get('collection')),_preview_text(data.get('collectionOrder')),_preview_flag(data.get('featured')),_preview_flag(data.get('draft')),_preview_text(data.get('canonical')),body.replace('\r\n','\n').strip()])
+    return _preview_digest([_preview_text(data.get('title')),_preview_text(data.get('description')),_preview_text(data.get('category')),'\x1e'.join(map(_preview_text,data.get('tags',[]))),_preview_text(data.get('collection')),_preview_text(data.get('collectionOrder')),_preview_flag(data.get('featured')),_preview_flag(data.get('draft')),_preview_text(data.get('canonical')),_preview_flag(data.get('autoNumbering',True)),_preview_flag(data.get('showContents',True)),_preview_flag(data.get('showSideToc',True)),body.replace('\r\n','\n').strip()])
 
 def project_preview_version(data:dict)->str:
     return _preview_digest([_preview_text(data.get('repo')),_preview_text(data.get('title')),_preview_text(data.get('description')),'\x1e'.join(map(_preview_text,data.get('topics',[]))),_preview_text(data.get('homepage')),_preview_text(data.get('cover')),_preview_text(data.get('coverAlt')),_preview_flag(data.get('featured')),_preview_text(data.get('order'))])
@@ -167,7 +167,7 @@ def create_article(repo_root:Path,title:str)->Path:
     slug=slugify_collection(title);directory=blog/slug
     if (directory/'index.md').exists() or (directory/'index.mdx').exists():raise FileExistsError(f'内容库中已存在相同 slug：{slug}')
     directory.mkdir(parents=True,exist_ok=True)
-    data={'title':title,'description':'请用一到两句话概括文章内容，建议 30—80 字。','publishDate':date.today().isoformat(),'category':'未分类','tags':['待整理'],'featured':False,'draft':True}
+    data={'title':title,'description':'请用一到两句话概括文章内容，建议 30—80 字。','publishDate':date.today().isoformat(),'category':'未分类','tags':['待整理'],'featured':False,'draft':True,'autoNumbering':True,'showContents':True,'showSideToc':True}
     target=directory/'index.md';atomic_save(target,serialize_frontmatter(data,'在这里开始写作。\n\n## 第一个小节\n\n正文内容。\n'),repo_root,backup=False);return target
 
 def preview_route(kind:str,identifier:str='')->str:

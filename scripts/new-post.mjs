@@ -16,7 +16,7 @@ if (fs.existsSync(path.join(directory, 'index.md')) || fs.existsSync(path.join(d
 }
 fs.mkdirSync(directory, { recursive: true });
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
-const content = `---\ntitle: ${JSON.stringify(title)}\ndescription: "请用一到两句话概括文章内容，建议 30—80 字。"\npublishDate: ${today}\ncategory: "未分类"\ntags: ["待整理"]\nfeatured: false\ndraft: true\n---\n\n在这里开始写作。\n\n## 第一个小节\n\n正文内容。\n`;
+const content = `---\ntitle: ${JSON.stringify(title)}\ndescription: "请用一到两句话概括文章内容，建议 30—80 字。"\npublishDate: ${today}\ncategory: "未分类"\ntags: ["待整理"]\nfeatured: false\ndraft: true\nautoNumbering: true\nshowContents: true\nshowSideToc: true\n---\n\n在这里开始写作。\n\n## 第一个小节\n\n正文内容。\n`;
 fs.writeFileSync(path.join(directory, 'index.md'), content);
 console.log(`已创建草稿：src/content/blog/${slug}/index.md`);
 console.log('下一步：npm run dev');

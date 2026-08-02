@@ -11,6 +11,7 @@
     "build": "ASTRO_TELEMETRY_DISABLED=1 astro build && pagefind --site dist",
     "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
     "test": "vitest run && python3 -m unittest discover -s tools/prism-studio -p 'test_*.py'",
+    "predev": "node scripts/clean-astro-cache.mjs",
     "test:e2e": "playwright test",
     "post:new": "node scripts/new-post.mjs",
     "post:check": "node scripts/check-posts.mjs",

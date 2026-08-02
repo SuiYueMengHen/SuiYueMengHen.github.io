@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QProcess, QProcessEnvironment, QRect, QTimer, QUrl, Qt, Signal
+from PySide6.QtCore import QPoint, QProcess, QProcessEnvironment, QRect, QTimer, QUrl, Qt, Signal, QObject, Slot
 from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QImage, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkProxy, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
+from PySide6.QtWebChannel import QWebChannel
 
 from core import (
     article_assets, article_preview_version, atomic_save, command_environment, content_catalog, copy_images, create_article, create_collection,
@@ -91,6 +92,29 @@ class StablePreviewInterceptor(QWebEngineUrlRequestInterceptor):
     def interceptRequest(self,info):
         url=info.requestUrl()
         if url.path()=='/@vite/client' or url.host()=='giscus.app':info.block(True)
+
+
+class StableMarkdownEditor(QPlainTextEdit):
+    """Keep IME composition and the user's insertion point under editor ownership."""
+    compositionCommitted = Signal()
+
+    def __init__(self,parent=None):
+        super().__init__(parent);self.composing=False
+
+    def inputMethodEvent(self,event):
+        was_composing=self.composing;self.composing=bool(event.preeditString());super().inputMethodEvent(event)
+        if not self.composing and (was_composing or event.commitString()):self.compositionCommitted.emit()
+
+
+class PreviewScrollBridge(QObject):
+    """Receive rendered source positions directly from the preview scroll event."""
+
+    def __init__(self,studio):
+        super().__init__(studio);self.studio=studio
+
+    @Slot(float)
+    def previewScrolled(self,line):
+        self.studio.apply_preview_scroll(line)
 
 
 class TagPicker(QWidget):
@@ -272,17 +296,17 @@ class ContentTree(QTreeWidget):
 class Studio(QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760);self.theme=read_app_settings().get('theme','light')
-        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.selected_category='';self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.collection_loading=False;self.collection_original={};self.collection_loaded_state=None;self.category_loading=False;self.category_original_name='';self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_loading=False;self.preview_failures=0;self.preview_navigation=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.preview_reply=None;self.preview_network=QNetworkAccessManager(self);self.preview_network.setProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy));self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(250,self.ensure_preview))
+        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.selected_category='';self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.collection_loading=False;self.collection_original={};self.collection_loaded_state=None;self.category_loading=False;self.category_original_name='';self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_loading=False;self.preview_failures=0;self.preview_dom_attempts=0;self.preview_navigation=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.preview_reply=None;self.preview_network=QNetworkAccessManager(self);self.preview_network.setProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy));self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(250,self.ensure_preview))
         settings=read_app_settings();last_article=Path(settings.get('last_article','')) if settings.get('workspace')==str(ROOT) and settings.get('last_article') else None
         if last_article and last_article.is_file():self.current_file=last_article
-        self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(180);self.save_timer.timeout.connect(self.save_current)
+        self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(360);self.save_timer.timeout.connect(self.save_current)
         self.project_save_timer=QTimer(self);self.project_save_timer.setSingleShot(True);self.project_save_timer.setInterval(180);self.project_save_timer.timeout.connect(self.save_project_current)
         self.collection_save_timer=QTimer(self);self.collection_save_timer.setSingleShot(True);self.collection_save_timer.setInterval(180);self.collection_save_timer.timeout.connect(self.save_collection_current)
         self.category_save_timer=QTimer(self);self.category_save_timer.setSingleShot(True);self.category_save_timer.setInterval(420);self.category_save_timer.timeout.connect(self.save_category_current)
         self.marker_timer=QTimer(self);self.marker_timer.setInterval(3500);self.marker_timer.timeout.connect(self.refresh_change_markers)
         self.preview_watchdog=QTimer(self);self.preview_watchdog.setInterval(1200);self.preview_watchdog.timeout.connect(self.ensure_preview)
-        self.editor_sync_timer=QTimer(self);self.editor_sync_timer.setSingleShot(True);self.editor_sync_timer.setInterval(70);self.editor_sync_timer.timeout.connect(self.sync_preview_to_editor)
-        self.preview_scroll_timer=QTimer(self);self.preview_scroll_timer.setInterval(220);self.preview_scroll_timer.timeout.connect(self.poll_preview_scroll)
+        self.editor_sync_timer=QTimer(self);self.editor_sync_timer.setSingleShot(True);self.editor_sync_timer.setInterval(18);self.editor_sync_timer.timeout.connect(self.sync_preview_to_editor)
+        self.preview_scroll_timer=QTimer(self);self.preview_scroll_timer.setInterval(90);self.preview_scroll_timer.timeout.connect(self.poll_preview_scroll)
         self.preview_refresh_timer=QTimer(self);self.preview_refresh_timer.setSingleShot(True);self.preview_refresh_timer.setInterval(50);self.preview_refresh_timer.timeout.connect(self.refresh_preview_fragment)
         self.sync_process=QProcess(self);configure_process(self.sync_process);self.sync_process.setProcessChannelMode(QProcess.MergedChannels);self.sync_process.finished.connect(self.auto_sync_finished)
         self.build_ui();self.reload_content();self.start_preview();self.check_environment();self.marker_timer.start();self.preview_watchdog.start();self.preview_scroll_timer.start();QTimer.singleShot(2500,self.auto_sync)
@@ -318,6 +342,12 @@ class Studio(QMainWindow):
         self.cover_alt=QLineEdit();self.cover_alt.setPlaceholderText('描述封面画面，供无障碍阅读使用');layout.addRow('封面替代文本',self.cover_alt)
         self.date=QDateEdit();self.date.setCalendarPopup(True);self.date.setDate(date.today());layout.addRow('发布日期',self.date);self.canonical=QLineEdit();layout.addRow('Canonical URL',self.canonical)
         checks=QHBoxLayout();self.draft=QCheckBox('草稿');self.featured=QCheckBox('首页推荐');checks.addWidget(self.draft);checks.addWidget(self.featured);checks.addStretch();layout.addRow('状态',checks)
+        reading_options=QWidget();reading_options_layout=QVBoxLayout(reading_options);reading_options_layout.setContentsMargins(0,0,0,0);reading_options_layout.setSpacing(2)
+        self.auto_numbering=QCheckBox('自动编号章节（第 1 章 / §1.1 / §1.1.1）');self.auto_numbering.setChecked(True)
+        self.show_contents=QCheckBox('显示文章开头目录');self.show_contents.setChecked(True)
+        self.show_side_toc=QCheckBox('显示随文侧边目录');self.show_side_toc.setChecked(True)
+        reading_options_layout.addWidget(self.auto_numbering);reading_options_layout.addWidget(self.show_contents);reading_options_layout.addWidget(self.show_side_toc)
+        reading_hint=QLabel('三项可独立设置；旧文章缺少字段时也会按全部开启显示。');reading_hint.setObjectName('muted');reading_hint.setWordWrap(True);reading_options_layout.addWidget(reading_hint);layout.addRow('阅读结构',reading_options)
         self.form_scroll.setWidget(self.form_surface);self.tabs.addTab(self.form_scroll,'文章信息')
         self.project_form_scroll=QScrollArea();self.project_form_scroll.setObjectName('formScroll');self.project_form_scroll.viewport().setObjectName('formViewport');self.project_form_scroll.setWidgetResizable(True);self.project_form_scroll.setFrameShape(QFrame.NoFrame);self.project_form_surface=QWidget();self.project_form_surface.setObjectName('formSurface');project_layout=QFormLayout(self.project_form_surface);project_layout.setContentsMargins(12,14,12,12);project_layout.setSpacing(11);project_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.project_repo=QLineEdit();self.project_repo.setReadOnly(True);project_layout.addRow('GitHub 仓库',self.project_repo)
@@ -334,8 +364,9 @@ class Studio(QMainWindow):
         self.collection_form_scroll=QScrollArea();self.collection_form_scroll.setObjectName('formScroll');self.collection_form_scroll.viewport().setObjectName('formViewport');self.collection_form_scroll.setWidgetResizable(True);self.collection_form_scroll.setFrameShape(QFrame.NoFrame);self.collection_form_surface=QWidget();self.collection_form_surface.setObjectName('formSurface');collection_layout=QFormLayout(self.collection_form_surface);collection_layout.setContentsMargins(12,14,12,12);collection_layout.setSpacing(11);collection_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.collection_title_field=QLineEdit();collection_layout.addRow('合集名称',self.collection_title_field);self.collection_description=QTextEdit();self.collection_description.setMinimumHeight(100);collection_layout.addRow('合集简介',self.collection_description);self.collection_subtitle=QLineEdit();collection_layout.addRow('副标题',self.collection_subtitle);self.collection_volume=QLineEdit();collection_layout.addRow('卷号',self.collection_volume);self.collection_status=QComboBox();self.collection_status.addItem('连载中','ongoing');self.collection_status.addItem('已完成','complete');self.collection_status.addItem('暂停更新','paused');collection_layout.addRow('状态',self.collection_status);self.collection_featured=QCheckBox('重点合集');collection_layout.addRow('展示',self.collection_featured);self.collection_order_hint=QLabel('合集和章节的顺序由左侧内容库决定；直接拖动即可调整。');self.collection_order_hint.setObjectName('muted');self.collection_order_hint.setWordWrap(True);collection_layout.addRow('排序',self.collection_order_hint);self.collection_form_scroll.setWidget(self.collection_form_surface);self.tabs.addTab(self.collection_form_scroll,'合集信息');self.tabs.setTabVisible(2,False)
         self.category_form_scroll=QScrollArea();self.category_form_scroll.setObjectName('formScroll');self.category_form_scroll.viewport().setObjectName('formViewport');self.category_form_scroll.setWidgetResizable(True);self.category_form_scroll.setFrameShape(QFrame.NoFrame);self.category_form_surface=QWidget();self.category_form_surface.setObjectName('formSurface');category_info_layout=QFormLayout(self.category_form_surface);category_info_layout.setContentsMargins(12,14,12,12);category_info_layout.setSpacing(11);category_info_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow);self.category_name_field=QLineEdit();category_info_layout.addRow('分类名称',self.category_name_field);self.category_count=QLabel('0 篇文章');category_info_layout.addRow('当前内容',self.category_count);self.category_info_hint=QLabel('修改名称会自动迁移该分类中的全部散篇；“未分类”是系统保留位置。');self.category_info_hint.setObjectName('muted');self.category_info_hint.setWordWrap(True);category_info_layout.addRow('说明',self.category_info_hint);self.category_form_scroll.setWidget(self.category_form_surface);self.tabs.addTab(self.category_form_scroll,'分类信息');self.tabs.setTabVisible(3,False)
-        self.editor=QPlainTextEdit();self.editor.setObjectName('markdownEditor');self.editor.setMinimumHeight(350);font=QFont('SF Mono',13);font.setStyleHint(QFont.Monospace);self.editor.setFont(font);self.editor.setPlaceholderText('在这里开始写作…')
+        self.editor=StableMarkdownEditor();self.editor.setObjectName('markdownEditor');self.editor.setMinimumHeight(350);font=QFont('SF Mono',13);font.setStyleHint(QFont.Monospace);self.editor.setFont(font);self.editor.setPlaceholderText('在这里开始写作…')
         self.editor.cursorPositionChanged.connect(self.schedule_cursor_sync);self.editor.verticalScrollBar().valueChanged.connect(self.schedule_editor_scroll_sync)
+        self.editor.compositionCommitted.connect(self.schedule_save);self.editor.compositionCommitted.connect(self.schedule_cursor_sync)
         self.editor_split=QSplitter(Qt.Vertical);self.editor_split.setChildrenCollapsible(False);self.editor_split.addWidget(self.tabs);self.editor_split.addWidget(self.editor);self.editor_split.setSizes([285,590]);mv.addWidget(self.editor_split,1)
         tools=QHBoxLayout();self.image_button=QPushButton('插入图片');self.image_button.clicked.connect(self.insert_images);self.project_button=QPushButton('插入项目卡片到文章');self.project_button.clicked.connect(lambda:self.add_project(True));tools.addWidget(self.image_button);tools.addWidget(self.project_button);tools.addStretch();mv.addLayout(tools);split.addWidget(middle)
 
@@ -345,11 +376,12 @@ class Studio(QMainWindow):
         for label,path in [('首页','/'),('合集','/blog/'),('分类','/categories/'),('归档','/archive/'),('项目','/projects/')]:
             button=QPushButton(label);button.setProperty('compact',True);button.setToolTip(f'在右侧预览{label}页面');button.clicked.connect(lambda _checked=False,target=path:self.open_preview_page(target));preview_nav.addWidget(button)
         preview_nav.addStretch();rv.addLayout(preview_nav)
-        self.preview_frame=QFrame();self.preview_frame.setObjectName('previewFrame');pv=QVBoxLayout(self.preview_frame);pv.setContentsMargins(0,0,0,0);self.preview=QWebEngineView();self.preview_interceptor=StablePreviewInterceptor(self);self.preview.page().profile().setUrlRequestInterceptor(self.preview_interceptor);self.preview.loadFinished.connect(self.preview_loaded);pv.addWidget(self.preview);rv.addWidget(self.preview_frame,1)
+        self.preview_frame=QFrame();self.preview_frame.setObjectName('previewFrame');pv=QVBoxLayout(self.preview_frame);pv.setContentsMargins(0,0,0,0);self.preview=QWebEngineView();self.preview_interceptor=StablePreviewInterceptor(self);self.preview.page().profile().setUrlRequestInterceptor(self.preview_interceptor);self.preview_channel=QWebChannel(self.preview.page());self.preview_bridge=PreviewScrollBridge(self);self.preview_channel.registerObject('prismBridge',self.preview_bridge);self.preview.page().setWebChannel(self.preview_channel);self.preview.loadFinished.connect(self.preview_loaded);pv.addWidget(self.preview);rv.addWidget(self.preview_frame,1)
         self.console_tabs=QTabWidget();self.log=QPlainTextEdit();self.log.setReadOnly(True);self.log.setMaximumBlockCount(500);self.console_tabs.addTab(self.log,'运行日志');self.console_tabs.setMaximumHeight(150);rv.addWidget(self.console_tabs)
         publish=QHBoxLayout();self.publish_current=QPushButton('发布当前文章');self.publish_current.clicked.connect(lambda:self.publish(False));self.publish_all=QPushButton('发布全部变更');self.publish_all.setProperty('primary',True);self.publish_all.clicked.connect(lambda:self.publish(True));publish.addWidget(self.publish_current);publish.addWidget(self.publish_all);rv.addLayout(publish);split.addWidget(right);split.setSizes([300,620,650])
 
         for signal_object in [self.title_field.textChanged,self.description.textChanged,self.category.currentTextChanged,self.collection.currentIndexChanged,self.order.valueChanged,self.tags.changed,self.cover.textChanged,self.cover_alt.textChanged,self.date.dateChanged,self.canonical.textChanged,self.draft.toggled,self.featured.toggled,self.editor.textChanged]:signal_object.connect(self.schedule_save)
+        for signal_object in [self.auto_numbering.toggled,self.show_contents.toggled,self.show_side_toc.toggled]:signal_object.connect(self.schedule_display_save)
         for signal_object in [self.project_title_field.textChanged,self.project_description.textChanged,self.project_topics.changed,self.project_homepage.textChanged,self.project_cover.textChanged,self.project_cover_alt.textChanged,self.project_featured.toggled,self.project_order.valueChanged]:signal_object.connect(self.schedule_project_save)
         for signal_object in [self.collection_title_field.textChanged,self.collection_description.textChanged,self.collection_subtitle.textChanged,self.collection_volume.textChanged,self.collection_status.currentIndexChanged,self.collection_featured.toggled]:signal_object.connect(self.schedule_collection_save)
         self.category_name_field.textChanged.connect(self.schedule_category_save)
@@ -398,7 +430,14 @@ class Studio(QMainWindow):
         visible=self.tabs.isVisible();self.tabs.setVisible(not visible);self.focus_button.setText('显示文章信息' if visible else '专注写作');self.editor.setFocus()
 
     def schedule_save(self,*_):
-        if not self.loading and self.current_file:self.cancel_preview_request();self.preview_patch_generation+=1;self.document_dirty=True;self.preview_scroll_suppressed_until=time.monotonic()+1.2;self.save_state.setText('正在编辑 · 即将实时同步');self.mark_selected_pending('文章内容已修改，正在保存并同步预览…');self.save_timer.start()
+        if not self.loading and self.current_file:
+            self.cancel_preview_request();self.preview_patch_generation+=1;self.document_dirty=True;self.preview_scroll_suppressed_until=time.monotonic()+.12;self.save_state.setText('正在编辑 · 即将实时同步');self.mark_selected_pending('文章内容已修改，正在保存并同步预览…')
+            if self.editor.composing:self.save_timer.stop()
+            else:self.save_timer.start()
+
+    def schedule_display_save(self,*_):
+        self.schedule_save()
+        if not self.loading and self.current_file and not self.editor.composing:self.save_timer.start(45)
 
     def mark_selected_pending(self,message):
         item=self.tree.currentItem() if hasattr(self,'tree') else None
@@ -425,7 +464,7 @@ class Studio(QMainWindow):
             item.setForeground(0,QColor(self.theme_colors()['danger']));item.setToolTip(0,f"未发布：{changed['status']} · +{changed['added']} / -{changed['deleted']}\n"+'\n'.join(changed['files']))
         return item
 
-    def load_tree(self,selected_path=None):
+    def load_tree(self,selected_path=None,activate_missing=True):
         self.tree.blockSignals(True);self.tree.clear();articles=self.catalog['articles'];by_collection={c['id']:[] for c in self.catalog['collections']}
         for article in articles:
             if article.get('collection') in by_collection:by_collection[article['collection']].append(article)
@@ -455,7 +494,7 @@ class Studio(QMainWindow):
             if selected_path==item.data(0,ROLE_PATH):target_item=item
         if target_item:self.tree.setCurrentItem(target_item)
         self.tree.blockSignals(False);pending=len(self.changes)+len(self.collection_changes)+len(self.project_changes);self.pending_badge.setText(f'{pending} 项未上传');self.pending_badge.setStyleSheet('color:#a6382b' if pending else '')
-        if target_item and self.loaded_view_state is None:QTimer.singleShot(0,self.select_item)
+        if target_item and activate_missing and self.loaded_view_state is None:QTimer.singleShot(0,self.select_item)
 
     def refresh_change_markers(self):
         if self.change_future and not self.change_future.done():self.change_refresh_queued=True;return
@@ -496,7 +535,9 @@ class Studio(QMainWindow):
         """Rebuild Astro's content index after adding a new collection entry."""
         if path is not None:self.preview_path=path
         self.cancel_preview_request();self.preview_navigation+=1;self.preview_patch_generation+=1;self.preview_ready=False;self.preview_loading=False;self.preview_refresh_pending=False;self.preview_status.setText('正在载入新项目预览…')
-        if self.dev.state()!=QProcess.NotRunning:self.dev.terminate();self.dev.waitForFinished(1800)
+        if self.dev.state()!=QProcess.NotRunning:
+            self.dev.terminate()
+            if not self.dev.waitForFinished(1800):self.dev.kill();self.dev.waitForFinished(1200)
         self.start_preview()
 
     def handle_dev_output(self):
@@ -528,7 +569,7 @@ class Studio(QMainWindow):
     def preview_url(self):return QUrl(f'http://127.0.0.1:{self.port}{self.preview_path}')
     def navigate_preview(self,path=None):
         if path is not None:self.preview_path=path
-        self.preview_navigation+=1;self.preview_patch_generation+=1;token=self.preview_navigation;self.preview_ready=False;self.preview_loading=True;self.preview_status.setText('正在打开预览…');self.try_preview_navigation(token,0)
+        self.preview_navigation+=1;self.preview_patch_generation+=1;self.preview_dom_attempts=0;token=self.preview_navigation;self.preview_ready=False;self.preview_loading=True;self.preview_status.setText('正在打开预览…');self.try_preview_navigation(token,0)
 
     def try_preview_navigation(self,token,attempt):
         if token!=self.preview_navigation:return
@@ -552,15 +593,50 @@ class Studio(QMainWindow):
     def preview_loaded(self,success):
         loaded=self.preview.url();on_local_preview=loaded.host()=='127.0.0.1' and loaded.port()==self.port
         self.preview_loading=False
-        if success and on_local_preview:self.confirm_preview_dom(True)
+        if success and on_local_preview:
+            selector='.prose' if self.selected_kind=='article' else '.projects' if self.selected_kind=='project' else '#main-content'
+            expected=json.dumps(self.preview_expected_version if self.selected_kind=='article' else '')
+            script=f"(()=>{{const node=document.querySelector({json.dumps(selector)});if(!node)return false;const expected={expected};return !expected||node.dataset.contentVersion===expected}})()"
+            self.preview.page().runJavaScript(script,self.confirm_preview_dom)
         elif self.port_open():QTimer.singleShot(250,lambda:self.try_preview_navigation(self.preview_navigation,0))
 
     def confirm_preview_dom(self,ready):
-        if not ready:return
-        self.preview_ready=True;self.preview_failures=0;self.preview_status.setText('● 稳定实时预览');self.preview.page().runJavaScript("document.querySelector('.giscus')?.replaceChildren(Object.assign(document.createElement('p'),{textContent:'评论组件将在正式网站中加载；Studio 预览已停用外部 iframe 以保持稳定。'}))");self.sync_preview_theme();QTimer.singleShot(70,self.complete_preview_refresh)
+        if not ready:
+            self.preview_ready=False;self.preview_loading=False;self.preview_dom_attempts+=1
+            if self.preview_dom_attempts<40:self.preview_status.setText('正在等待新文章路由…');QTimer.singleShot(150,lambda:self.try_preview_navigation(self.preview_navigation,0))
+            else:self.preview_status.setText('预览路由尚未就绪 · 正在重建');self.restart_preview(self.preview_path)
+            return
+        self.preview_dom_attempts=0;self.preview_ready=True;self.preview_failures=0;self.preview_status.setText('● 稳定实时预览');self.preview.page().runJavaScript("document.querySelector('.giscus')?.replaceChildren(Object.assign(document.createElement('p'),{className:'studio-comments-note',textContent:'正式网站会在此载入 GitHub Discussions；Studio 中保留版式预览，不加载外部 iframe。'}))");self.install_preview_scroll_bridge();self.sync_preview_theme();QTimer.singleShot(35,self.complete_preview_refresh)
 
     def complete_preview_refresh(self):
-        self.preview_refresh_timer.stop();self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=time.monotonic()+.45;self.schedule_cursor_sync()
+        self.preview_refresh_timer.stop();self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=time.monotonic()+.18;self.install_preview_scroll_bridge();self.schedule_cursor_sync()
+
+    def install_preview_scroll_bridge(self):
+        if self.selected_kind!='article' or not self.preview_ready:return
+        script="""
+        (()=>{
+          if(window.__prismScrollBridgeInstalled)return;
+          const connect=()=>{
+            if(!window.qt?.webChannelTransport||typeof QWebChannel==='undefined')return false;
+            new QWebChannel(qt.webChannelTransport,channel=>{
+              const bridge=channel.objects.prismBridge;if(!bridge)return;
+              let userUntil=0,frame=0;
+              const markUser=()=>{userUntil=performance.now()+320};
+              const report=()=>{frame=0;if(performance.now()>userUntil)return;const prose=document.querySelector('.prose');if(!prose)return;
+                const selector='p[data-source-start],h1[data-source-start],h2[data-source-start],h3[data-source-start],h4[data-source-start],h5[data-source-start],h6[data-source-start],li[data-source-start],pre[data-source-start],blockquote[data-source-start],table[data-source-start],figure[data-source-start],img[data-source-start],hr[data-source-start]';
+                const nodes=[...prose.querySelectorAll(selector)],anchor=innerHeight*.28;let best=null,bestDistance=Infinity;
+                for(const node of nodes){const rect=node.getBoundingClientRect(),distance=anchor<rect.top?rect.top-anchor:anchor>rect.bottom?anchor-rect.bottom:0;if(distance<bestDistance){best={node,rect};bestDistance=distance}}
+                if(!best)return;const start=Number(best.node.dataset.sourceStart),end=Number(best.node.dataset.sourceEnd||start),fraction=Math.max(0,Math.min(1,(anchor-best.rect.top)/Math.max(1,best.rect.height)));bridge.previewScrolled(start+fraction*Math.max(0,end-start));};
+              for(const event of ['wheel','touchmove','pointerdown','pointermove','keydown'])addEventListener(event,markUser,{passive:true,capture:true});
+              addEventListener('scroll',()=>{if(frame||performance.now()>userUntil)return;frame=requestAnimationFrame(report)},{passive:true});
+              window.__prismScrollBridgeInstalled=true;
+            });return true;
+          };
+          if(connect())return;const existing=document.querySelector('script[data-prism-webchannel]');if(existing)return;
+          const loader=document.createElement('script');loader.src='qrc:///qtwebchannel/qwebchannel.js';loader.dataset.prismWebchannel='true';loader.onload=connect;document.head.append(loader);
+        })()
+        """
+        self.preview.page().runJavaScript(script)
 
     def refresh_preview_fragment(self,attempt=0,generation=None):
         if self.selected_kind not in {'article','project'}:return self.complete_preview_refresh()
@@ -610,7 +686,7 @@ class Studio(QMainWindow):
             let changed=0;
             const replace=(selector)=>{{
               const current=document.querySelector(selector),next=nextDoc.querySelector(selector);
-              if(current&&next&&current.innerHTML!==next.innerHTML){{current.replaceChildren(...[...next.childNodes].map(node=>document.importNode(node,true)));changed++;}}
+              if(current&&next){{let nodeChanged=false;if(current.className!==next.className){{current.className=next.className;nodeChanged=true;}}for(const attribute of [...current.attributes])if(!next.hasAttribute(attribute.name)){{current.removeAttribute(attribute.name);nodeChanged=true;}}for(const attribute of [...next.attributes])if(current.getAttribute(attribute.name)!==attribute.value){{current.setAttribute(attribute.name,attribute.value);nodeChanged=true;}}if(current.innerHTML!==next.innerHTML){{current.replaceChildren(...[...next.childNodes].map(node=>document.importNode(node,true)));nodeChanged=true;}}if(nodeChanged)changed++;}}
               else if(current&&!next){{current.remove();changed++;}}
               else if(!current&&next){{const clone=document.importNode(next,true);if(selector==='.book-toc'||selector==='.side-toc')oldAnchor.before(clone);else oldAnchor.after(clone);changed++;}}
             }};
@@ -622,20 +698,20 @@ class Studio(QMainWindow):
           }}catch(error){{console.warn('Prism patch deferred',error)}}
         }})()
         """
-        self.preview.page().runJavaScript(script);QTimer.singleShot(45,lambda:self.finish_preview_fragment(generation))
+        self.preview.page().runJavaScript(script);QTimer.singleShot(24,lambda:self.finish_preview_fragment(generation))
 
     def finish_preview_fragment(self,generation):
         if generation!=self.preview_patch_generation:return
         self.preview_ready=True;self.preview_status.setText('● 当前版本已同步');self.complete_preview_refresh()
 
     def schedule_cursor_sync(self):
-        if self.loading or self.selected_kind!='article' or not self.current_file:return
+        if self.loading or self.editor.composing or self.selected_kind!='article' or not self.current_file:return
         self.editor_sync_mode='cursor';self.editor_sync_timer.start()
 
     def schedule_editor_scroll_sync(self,*_):
         if self.loading or self.applying_preview_scroll or self.selected_kind!='article' or not self.current_file:return
-        if not (self.editor_sync_timer.isActive() and self.editor_sync_mode=='cursor'):self.editor_sync_mode='scroll'
-        self.editor_sync_timer.start()
+        self.editor_sync_mode='scroll'
+        if not self.editor_sync_timer.isActive():self.editor_sync_timer.start()
 
     def editor_source_line(self):
         if self.editor_sync_mode=='cursor':
@@ -645,12 +721,12 @@ class Studio(QMainWindow):
         return cursor.blockNumber()+1
 
     def sync_preview_to_editor(self):
-        if not self.preview_ready or self.selected_kind!='article' or not self.current_file or self.document_dirty or self.preview_refresh_pending:return
+        if not self.preview_ready or self.selected_kind!='article' or not self.current_file:return
         line=self.editor_source_line();fallback=max(0.0,min(1.0,(line-1)/max(1,self.editor.document().blockCount()-1)))
-        self.preview_scroll_suppressed_until=time.monotonic()+.4
+        self.preview_scroll_suppressed_until=time.monotonic()+.14
         script=f"""
         (()=>{{const prose=document.querySelector('.prose');if(!prose)return false;
-          const line={line},fallback={fallback},selector='p[data-source-start],h2[data-source-start],h3[data-source-start],h4[data-source-start],h5[data-source-start],h6[data-source-start],li[data-source-start],pre[data-source-start],blockquote[data-source-start],table[data-source-start],figure[data-source-start],img[data-source-start],hr[data-source-start]';
+          const line={line},fallback={fallback},selector='p[data-source-start],h1[data-source-start],h2[data-source-start],h3[data-source-start],h4[data-source-start],h5[data-source-start],h6[data-source-start],li[data-source-start],pre[data-source-start],blockquote[data-source-start],table[data-source-start],figure[data-source-start],img[data-source-start],hr[data-source-start]';
           const nodes=[...prose.querySelectorAll(selector)];let best=null,bestScore=Infinity;
           for(const node of nodes){{const start=Number(node.dataset.sourceStart),end=Number(node.dataset.sourceEnd||start);const distance=line<start?start-line:line>end?line-end:0;const score=distance*1000+(end-start);if(score<bestScore){{best={{node,start,end}};bestScore=score}}}}
           const proseRect=prose.getBoundingClientRect(),proseTop=proseRect.top+scrollY,sticky=72;
@@ -663,22 +739,29 @@ class Studio(QMainWindow):
         self.preview.page().runJavaScript(script)
 
     def poll_preview_scroll(self):
-        if not self.isActiveWindow() or not self.preview.isVisible() or not self.preview_ready or self.selected_kind!='article' or not self.current_file or self.document_dirty or self.preview_refresh_pending or time.monotonic()<self.preview_scroll_suppressed_until:return
+        if not self.isActiveWindow() or not self.preview.isVisible() or not self.preview_owns_focus() or self.editor.hasFocus() or not self.preview_ready or self.selected_kind!='article' or not self.current_file or self.document_dirty or self.preview_refresh_pending or time.monotonic()<self.preview_scroll_suppressed_until:return
         script="""
         (()=>{const prose=document.querySelector('.prose');if(!prose)return null;
-          const selector='p[data-source-start],h2[data-source-start],h3[data-source-start],h4[data-source-start],h5[data-source-start],h6[data-source-start],li[data-source-start],pre[data-source-start],blockquote[data-source-start],table[data-source-start],figure[data-source-start],img[data-source-start],hr[data-source-start]';
+          const selector='p[data-source-start],h1[data-source-start],h2[data-source-start],h3[data-source-start],h4[data-source-start],h5[data-source-start],h6[data-source-start],li[data-source-start],pre[data-source-start],blockquote[data-source-start],table[data-source-start],figure[data-source-start],img[data-source-start],hr[data-source-start]';
           const nodes=[...prose.querySelectorAll(selector)],anchor=innerHeight*.28;let best=null,bestDistance=Infinity;
           for(const node of nodes){const rect=node.getBoundingClientRect(),distance=anchor<rect.top?rect.top-anchor:anchor>rect.bottom?anchor-rect.bottom:0;if(distance<bestDistance){best={node,rect};bestDistance=distance}}
           if(!best)return null;const start=Number(best.node.dataset.sourceStart),end=Number(best.node.dataset.sourceEnd||start);const fraction=Math.max(0,Math.min(1,(anchor-best.rect.top)/Math.max(1,best.rect.height)));return start+fraction*Math.max(0,end-start);})()
         """
-        self.preview.page().runJavaScript(script,self.apply_preview_scroll)
+        self.preview.page().runJavaScript(script,lambda line:self.apply_preview_scroll(line,True))
 
-    def apply_preview_scroll(self,ratio):
-        if time.monotonic()<self.preview_scroll_suppressed_until or not isinstance(ratio,(int,float)):return
+    def apply_preview_scroll(self,ratio,require_preview_focus=False):
+        if (require_preview_focus and (not self.preview_owns_focus() or self.editor.hasFocus())) or time.monotonic()<self.preview_scroll_suppressed_until or not isinstance(ratio,(int,float)):return
         line=max(1,min(self.editor.document().blockCount(),float(ratio)));target_block=round(line)-1
         anchor_cursor=self.editor.cursorForPosition(QPoint(4,round(self.editor.viewport().height()*.28)));delta=target_block-anchor_cursor.blockNumber();bar=self.editor.verticalScrollBar()
         if not delta:return
         self.applying_preview_scroll=True;bar.setValue(bar.value()+delta);self.applying_preview_scroll=False
+
+    def preview_owns_focus(self):
+        widget=QApplication.focusWidget()
+        while widget is not None:
+            if widget is self.preview:return True
+            widget=widget.parentWidget()
+        return self.preview.hasFocus()
 
     def resize_preview(self,index):
         widths=[16777215,820,390];self.preview_frame.setMaximumWidth(widths[index]);self.preview_frame.setMinimumWidth(0 if index==0 else widths[index]);self.preview_frame.parentWidget().layout().setAlignment(self.preview_frame,Qt.AlignHCenter)
@@ -799,6 +882,10 @@ class Studio(QMainWindow):
         if kind!='article':return
         path=Path(item.data(0,ROLE_PATH))
         if not path.is_file():self.reload_content();QMessageBox.warning(self,'文章文件不存在',f'找不到：{path}\n\n内容库已刷新。若博客目录被移动，请点击顶部“选择工作区”。');return
+        route=preview_route('article',path.parent.name)
+        if self.selected_kind=='article' and self.current_file==path and self.loaded_view_state is not None:
+            if self.preview_path!=route or not self.preview_ready:self.navigate_preview(route)
+            return
         if self.current_file and self.current_file!=path:self.save_timer.stop();self.save_current()
         try:data,body=split_frontmatter(path.read_text('utf-8'))
         except OSError as error:QMessageBox.warning(self,'无法打开文章',f'{error}\n\n请确认工作区与文件权限。');return
@@ -807,9 +894,9 @@ class Studio(QMainWindow):
         if self.selected_kind=='category':self.category_save_timer.stop();self.save_category_current()
         self.current_file=path;self.selected_kind='article';self.selected_path=path;self.original_metadata=dict(data);self.original_body=body;self.loading=True;self.title_field.setText(str(data.get('title','')));self.description.setPlainText(str(data.get('description','')));category=str(data.get('category','未分类'));category_index=self.category.findText(category)
         if category_index<0:self.category.addItem(category);category_index=self.category.findText(category)
-        self.category.setCurrentIndex(max(0,category_index));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.editor.setPlainText(body);self.loading=False;self.update_category_availability()
+        self.category.setCurrentIndex(max(0,category_index));index=self.collection.findData(data.get('collection') or '');self.collection.setCurrentIndex(max(0,index));self.order.setValue(int(data.get('collectionOrder',0) or 0));self.tags.set_pool(self.catalog['tags'],data.get('tags',[]));self.cover.setText(str(data.get('cover','') or ''));self.cover_alt.setText(str(data.get('coverAlt','') or ''));published=data.get('publishDate',date.today());self.date.setDate(published if isinstance(published,date) else date.fromisoformat(str(published)));self.canonical.setText(str(data.get('canonical','') or ''));self.draft.setChecked(bool(data.get('draft',False)));self.featured.setChecked(bool(data.get('featured',False)));self.auto_numbering.setChecked(bool(data.get('autoNumbering',True)));self.show_contents.setChecked(bool(data.get('showContents',True)));self.show_side_toc.setChecked(bool(data.get('showSideToc',True)));self.editor.setPlainText(body);self.loading=False;self.update_category_availability()
         self.preview_expected_version=article_preview_version(data,body);self.set_content_mode('article');self.document_dirty=False;self.loaded_view_state=self.view_state();self.current_title.setText(data.get('title',path.parent.name));self.save_state.setText('草稿 · 不会出现在正式网站' if self.draft.isChecked() else '已保存到本地');self.publish_current.setText('发布当前文章' if self.draft.isChecked() else '上传当前文章');self.publish_current.setEnabled(True);self.project_button.setEnabled(True);changed=self.changes.get(path.parent.name);self.change_detail.setText(f"● 尚未上传 · {changed['status']} · 新增 {changed['added']} 行 / 删除 {changed['deleted']} 行\n"+'\n'.join(changed['files']) if changed else '✓ 当前文章与 GitHub 仓库一致，没有待上传修改。')
-        settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme,'last_article':str(path)});write_app_settings(settings);self.navigate_preview(preview_route('article',path.parent.name))
+        settings=read_app_settings();settings.update({'workspace':str(ROOT),'theme':self.theme,'last_article':str(path)});write_app_settings(settings);self.navigate_preview(route)
 
     def expand_tree_item(self,item,_column=0):
         if item.data(0,ROLE_KIND) in {'collection','category','collections-root','loose-root','projects-root'} and item.childCount():item.setExpanded(True)
@@ -832,10 +919,10 @@ class Studio(QMainWindow):
 
     def metadata(self):
         collection=self.collection.currentData() or None
-        data=dict(self.original_metadata);data.update({'title':self.title_field.text(),'description':self.description.toPlainText(),'publishDate':self.date.date().toString('yyyy-MM-dd'),'category':self.category.currentText().strip(),'tags':self.tags.selected_tags(),'collection':collection,'collectionOrder':self.order.value() or None if collection else None,'cover':self.cover.text() or None,'coverAlt':self.cover_alt.text() or None,'featured':self.featured.isChecked(),'draft':self.draft.isChecked(),'canonical':self.canonical.text() or None});return data
+        data=dict(self.original_metadata);data.update({'title':self.title_field.text(),'description':self.description.toPlainText(),'publishDate':self.date.date().toString('yyyy-MM-dd'),'category':self.category.currentText().strip(),'tags':self.tags.selected_tags(),'collection':collection,'collectionOrder':self.order.value() or None if collection else None,'cover':self.cover.text() or None,'coverAlt':self.cover_alt.text() or None,'featured':self.featured.isChecked(),'draft':self.draft.isChecked(),'autoNumbering':self.auto_numbering.isChecked(),'showContents':self.show_contents.isChecked(),'showSideToc':self.show_side_toc.isChecked(),'canonical':self.canonical.text() or None});return data
 
     def view_state(self):
-        return (self.title_field.text(),self.description.toPlainText(),self.date.date().toString('yyyy-MM-dd'),self.category.currentText().strip(),tuple(self.tags.selected_tags()),self.collection.currentData() or '',self.order.value(),self.cover.text(),self.cover_alt.text(),self.canonical.text(),self.featured.isChecked(),self.draft.isChecked(),self.editor.toPlainText())
+        return (self.title_field.text(),self.description.toPlainText(),self.date.date().toString('yyyy-MM-dd'),self.category.currentText().strip(),tuple(self.tags.selected_tags()),self.collection.currentData() or '',self.order.value(),self.cover.text(),self.cover_alt.text(),self.canonical.text(),self.featured.isChecked(),self.draft.isChecked(),self.auto_numbering.isChecked(),self.show_contents.isChecked(),self.show_side_toc.isChecked(),self.editor.toPlainText())
 
     def save_current(self):
         if not self.current_file or self.loading or not self.document_dirty:return
@@ -845,7 +932,7 @@ class Studio(QMainWindow):
         if semantic_value(data)==semantic_value(self.original_metadata) and body==self.original_body:self.loaded_view_state=current_state;self.document_dirty=False;self.save_state.setText('已保存到本地');return
         try:atomic_save(self.current_file,serialize_frontmatter(data,body),ROOT)
         except OSError as error:self.save_state.setText('保存失败 · 修改仍在编辑器中');self.statusBar().showMessage(str(error),5000);return
-        self.original_metadata=data;self.original_body=body;self.loaded_view_state=current_state;self.document_dirty=False;self.preview_expected_version=article_preview_version(data,body);self.preview_refresh_pending=True;self.preview_scroll_suppressed_until=time.monotonic()+1.2;self.preview_refresh_timer.start();self.save_state.setText('● 已保存到本地 · 等待上传');self.statusBar().showMessage('已原子保存，本地备份和预览正在更新',1200)
+        self.original_metadata=data;self.original_body=body;self.loaded_view_state=current_state;self.document_dirty=False;self.preview_expected_version=article_preview_version(data,body);self.preview_refresh_pending=True;self.preview_scroll_suppressed_until=time.monotonic()+.22;self.preview_refresh_timer.start();self.save_state.setText('● 已保存到本地 · 等待上传');self.statusBar().showMessage('已原子保存，本地备份和预览正在更新',1200)
         if old_tree_state!=new_tree_state:self.catalog=content_catalog(ROOT);self.load_tree(str(self.current_file))
         self.refresh_change_markers()
 
@@ -906,7 +993,7 @@ class Studio(QMainWindow):
         if not future.done():return QTimer.singleShot(60,lambda:self.finish_new_article(future))
         try:created=future.result()
         except (OSError,ValueError,FileExistsError) as error:self.workspace_status.setText('文章创建失败');return QMessageBox.warning(self,'创建失败',str(error))
-        self.log.appendPlainText(f'已创建草稿：{created.relative_to(ROOT)}');self.workspace_status.setText('新文章已创建在“未分类” · 等待发布');self.catalog=content_catalog(ROOT);self.load_tree(str(created));QTimer.singleShot(0,lambda:self.select_tree_path(created))
+        self.log.appendPlainText(f'已创建草稿：{created.relative_to(ROOT)}');self.workspace_status.setText('新文章已创建在“未分类” · 正在准备预览');self.catalog=content_catalog(ROOT);self.load_tree(str(created),activate_missing=False);route=preview_route('article',created.parent.name);self.restart_preview(route);QTimer.singleShot(0,lambda:self.select_tree_path(created))
 
     def new_collection(self):
         dialog=CollectionDialog(self)
@@ -1009,7 +1096,8 @@ class Studio(QMainWindow):
         iterator=QTreeWidgetItemIterator(self.tree)
         while iterator.value():
             item=iterator.value()
-            if item.data(0,ROLE_PATH)==str(path):self.tree.setCurrentItem(item);return
+            if item.data(0,ROLE_PATH)==str(path):
+                self.tree.blockSignals(True);self.tree.setCurrentItem(item);self.tree.blockSignals(False);self.select_item();return
             iterator+=1
 
     def sync_repository(self):
