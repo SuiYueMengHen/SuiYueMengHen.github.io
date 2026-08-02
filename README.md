@@ -169,9 +169,9 @@ tools/prism-studio/  PySide6 桌面写作工具
 .github/workflows/  检查与 GitHub Pages 部署
 ```
 
-## 演示文章
+## 初始内容状态
 
-仓库初始包含三篇标注为“演示文章”的内容，用于展示排版和首页状态。写好正式文章后，可以直接删除对应的三个目录。
+仓库以空内容库交付：文章、合集、项目快照与自定义分类均不预置数据。可通过 Prism Studio 或 `npm run post:new -- --title "文章标题"` 创建第一篇内容。
 
 ## License
 

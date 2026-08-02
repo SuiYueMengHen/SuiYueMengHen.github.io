@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PrismHero from '../components/PrismHero.astro';
 import PostCard from '../components/PostCard.astro';
+import LibraryEmpty from '../components/LibraryEmpty.astro';
 import { visiblePosts } from '../lib/posts';
 import { siteConfig } from '../config/site';
 const posts=visiblePosts(await getCollection('blog'));
@@ -13,7 +14,7 @@ const tags=[...new Set(posts.flatMap((post)=>post.data.tags))].slice(0,10);
 <BaseLayout>
   <PrismHero />
   {featured&&<section class="section"><div class="shell narrow"><p class="section-kicker">Editor's note</p><h2 class="section-heading">推荐阅读</h2><PostCard post={featured} featured /></div></section>}
-  <section class="section" id="latest"><div class="shell narrow"><div class="section-title"><div><p class="section-kicker">Recent papers</p><h2 class="section-heading">最近文章</h2></div><a href="/blog/">查看全部&nbsp;→</a></div><div>{latest.map((post,index)=><PostCard post={post} index={index+1}/>)}</div></div></section>
+  <section class="section" id="latest"><div class="shell narrow"><div class="section-title"><div><p class="section-kicker">Recent papers</p><h2 class="section-heading">最近文章</h2></div><a href="/blog/">查看全部&nbsp;→</a></div><div>{posts.length?latest.map((post,index)=><PostCard post={post} index={index+1}/>):<LibraryEmpty index="Notes / 00" title="等待第一篇笔记" description="内容库已经初始化为空。下一篇文章将在这里成为 Prism Notes 的第一页。" />}</div></div></section>
   <section class="abstract-section"><div class="shell abstract"><p class="label">摘要</p><blockquote>“写作不是给答案，而是校准观看世界的角度。”</blockquote><p>这里收集未经速食化的思考：技术背后的人、创造发生的过程，以及普通日子里值得留住的细节。</p><p class="keywords"><strong>关键词：</strong>{tags.map((tag,index)=><span><a href={`/tags/${encodeURIComponent(tag)}/`}>{tag}</a>{index===tags.length-1?'':'；'}</span>)}</p></div></section>
   <section class="section"><div class="shell author"><div><p class="section-kicker">Author</p><h2>{siteConfig.author.name}</h2></div><div><p>{siteConfig.author.bio} 以长期主义维护这份可检索、可修订、可引用的个人笔记。</p><a href="/about/">作者简介&nbsp;→</a></div></div></section>
 </BaseLayout>

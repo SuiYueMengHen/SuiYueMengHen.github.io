@@ -341,6 +341,10 @@ class Studio(QMainWindow):
 
         right=self.panel('panel');rv=QVBoxLayout(right);rv.setContentsMargins(14,16,14,14);rv.setSpacing(10)
         preview_head=QHBoxLayout();preview_title=QLabel('实时成品');preview_title.setObjectName('panelTitle');self.preview_status=QLabel('正在启动预览…');self.preview_status.setObjectName('liveStatus');self.preview_size=QComboBox();self.preview_size.addItems(['桌面','平板','手机']);self.preview_size.currentIndexChanged.connect(self.resize_preview);preview_head.addWidget(preview_title);preview_head.addWidget(self.preview_status);preview_head.addStretch();preview_head.addWidget(self.preview_size);rv.addLayout(preview_head)
+        preview_nav=QHBoxLayout();preview_nav.setSpacing(5)
+        for label,path in [('首页','/'),('合集','/blog/'),('分类','/categories/'),('归档','/archive/'),('项目','/projects/')]:
+            button=QPushButton(label);button.setProperty('compact',True);button.setToolTip(f'在右侧预览{label}页面');button.clicked.connect(lambda _checked=False,target=path:self.open_preview_page(target));preview_nav.addWidget(button)
+        preview_nav.addStretch();rv.addLayout(preview_nav)
         self.preview_frame=QFrame();self.preview_frame.setObjectName('previewFrame');pv=QVBoxLayout(self.preview_frame);pv.setContentsMargins(0,0,0,0);self.preview=QWebEngineView();self.preview_interceptor=StablePreviewInterceptor(self);self.preview.page().profile().setUrlRequestInterceptor(self.preview_interceptor);self.preview.loadFinished.connect(self.preview_loaded);pv.addWidget(self.preview);rv.addWidget(self.preview_frame,1)
         self.console_tabs=QTabWidget();self.log=QPlainTextEdit();self.log.setReadOnly(True);self.log.setMaximumBlockCount(500);self.console_tabs.addTab(self.log,'运行日志');self.console_tabs.setMaximumHeight(150);rv.addWidget(self.console_tabs)
         publish=QHBoxLayout();self.publish_current=QPushButton('发布当前文章');self.publish_current.clicked.connect(lambda:self.publish(False));self.publish_all=QPushButton('发布全部变更');self.publish_all.setProperty('primary',True);self.publish_all.clicked.connect(lambda:self.publish(True));publish.addWidget(self.publish_current);publish.addWidget(self.publish_all);rv.addLayout(publish);split.addWidget(right);split.setSizes([300,620,650])
@@ -679,6 +683,9 @@ class Studio(QMainWindow):
     def resize_preview(self,index):
         widths=[16777215,820,390];self.preview_frame.setMaximumWidth(widths[index]);self.preview_frame.setMinimumWidth(0 if index==0 else widths[index]);self.preview_frame.parentWidget().layout().setAlignment(self.preview_frame,Qt.AlignHCenter)
 
+    def open_preview_page(self,path):
+        self.preview_path=path;self.navigate_preview(path)
+
     def set_content_mode(self,kind):
         article=kind=='article';project=kind=='project';collection=kind=='collection';category=kind=='category'
         self.tabs.setVisible(article or project or collection or category);self.tabs.setTabVisible(0,article);self.tabs.setTabVisible(1,project);self.tabs.setTabVisible(2,collection);self.tabs.setTabVisible(3,category)
@@ -763,6 +770,13 @@ class Studio(QMainWindow):
         items=self.tree.selectedItems();item=items[0] if items else None
         if not item:return
         kind=item.data(0,ROLE_KIND)
+        if kind in {'collections-root','loose-root','projects-root'}:
+            if self.current_file:self.save_timer.stop();self.save_current()
+            if self.selected_kind=='project':self.project_save_timer.stop();self.save_project_current()
+            if self.selected_kind=='collection':self.collection_save_timer.stop();self.save_collection_current()
+            if self.selected_kind=='category':self.category_save_timer.stop();self.save_category_current()
+            routes={'collections-root':('/blog/','合集书架'),'loose-root':('/categories/','散篇分类'),'projects-root':('/projects/','项目页')};route,title=routes[kind]
+            self.current_file=None;self.selected_path=None;self.selected_kind='';self.set_content_mode('');self.current_title.setText(title);self.save_state.setText('正在预览网站页面');self.publish_current.setEnabled(False);self.change_detail.setText('选择内容可继续编辑；也可以直接新建文章、合集或项目。');self.navigate_preview(route);return
         if kind=='category':
             if self.current_file:self.save_timer.stop();self.save_current()
             if self.selected_kind=='project':self.project_save_timer.stop();self.save_project_current()
