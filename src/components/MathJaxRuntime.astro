@@ -6,7 +6,7 @@
       tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],processEscapes:true,tags:'ams'},
       output:{displayOverflow:'linebreak',linebreaks:{inline:false,width:'100%',lineleading:.24},font:'mathjax-newcm'},
       svg:{fontCache:'global'},
-      options:{enableMenu:false},
+      options:{enableMenu:false,enableExplorer:false},
       startup:{typeset:false}
     };
     const typeset=async(container=document.body)=>{
@@ -14,6 +14,7 @@
       rendering=rendering.then(async()=>{
         await window.MathJax.startup.promise;
         await window.MathJax.typesetPromise?.([container]);
+        container.querySelectorAll?.('mjx-container').forEach((node)=>node.removeAttribute('tabindex'));
         document.documentElement.classList.add(readyClass);
         dispatchEvent(new CustomEvent('prism:math-ready',{detail:{container}}));
       }).catch((error)=>console.error('MathJax responsive typesetting failed',error));
@@ -26,6 +27,7 @@
         window.MathJax.startup.document.state(0);
         window.MathJax.texReset?.();
         await window.MathJax.typesetPromise?.();
+        document.querySelectorAll('mjx-container').forEach((node)=>node.removeAttribute('tabindex'));
         dispatchEvent(new CustomEvent('prism:math-ready',{detail:{container:document.body}}));
       }).catch((error)=>console.error('MathJax responsive reflow failed',error));
       return rendering;
@@ -46,8 +48,11 @@
 <script is:inline defer src="/vendor/mathjax/tex-svg.js"></script>
 <style is:global>
   html:not(.mathjax-ready) .math-source{visibility:hidden}
+  html.mathjax-ready .math-source--display{min-height:0}
   .math-source--display{display:block;min-height:2.6em;text-align:center}
   .math-source--inline{display:inline;white-space:nowrap}
+  .math-source mjx-container,.math-source mjx-container *{-webkit-user-select:none;user-select:none}
+  .math-source mjx-container{pointer-events:none;outline:none!important}
   .math-source--inline>mjx-container:not([display='true']){display:inline-block!important;width:auto!important;max-width:none!important;white-space:nowrap}
   .math-source--display>mjx-container[display='true']>svg{position:relative;left:50%;margin-inline:0;transform:translateX(-50%)}
 </style>

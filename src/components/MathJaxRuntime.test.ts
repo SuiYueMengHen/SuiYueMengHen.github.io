@@ -13,4 +13,10 @@ describe('MathJax responsive layout contract', () => {
     expect(runtimeSource).toContain(".math-source--display>mjx-container[display='true']>svg{position:relative;left:50%;margin-inline:0;transform:translateX(-50%)}");
     expect(runtimeSource).not.toContain('max-width:100%!important');
   });
+
+  it('disables the interactive explorer and pointer selection layer', () => {
+    expect(runtimeSource).toContain('enableExplorer:false');
+    expect(runtimeSource).toContain("node.removeAttribute('tabindex')");
+    expect(runtimeSource).toContain('pointer-events:none;outline:none!important');
+  });
 });
