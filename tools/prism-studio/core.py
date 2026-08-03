@@ -75,6 +75,19 @@ def copy_images(files:list[Path],article_dir:Path)->list[Path]:
         copied.append(target)
     return copied
 
+def unique_asset_path(article_dir:Path,name:str)->Path:
+    article_dir.mkdir(parents=True,exist_ok=True);source=Path(name);target=article_dir/source.name;counter=2
+    while target.exists():target=article_dir/f'{source.stem}-{counter}{source.suffix.lower()}';counter+=1
+    return target
+
+def image_markdown(filename:str,alt:str,width:int=100,caption:str='')->str:
+    clean_alt=str(alt).strip().replace(']','\\]')
+    if not clean_alt:raise ValueError('图片替代文本不能为空。')
+    clean_name=Path(filename).name;scale=max(10,min(100,int(width)));metadata=f'prism:width={scale}%'
+    if str(caption).strip():metadata+=f';caption={str(caption).strip()}'
+    metadata=metadata.replace('\\','\\\\').replace('"','\\"')
+    return f'![{clean_alt}](./{clean_name} "{metadata}")'
+
 def normalize_repo(value:str)->str:
     value=re.sub(r'^https?://github\.com/','',value.strip(),flags=re.I).split('?',1)[0].split('#',1)[0].rstrip('/').removesuffix('.git')
     if not re.match(r'^[\w.-]+/[\w.-]+$',value):raise ValueError('请输入 owner/repo 或完整 GitHub 仓库 URL')
@@ -174,7 +187,7 @@ def create_article(repo_root:Path,title:str)->Path:
     if (directory/'index.md').exists() or (directory/'index.mdx').exists():raise FileExistsError(f'内容库中已存在相同 slug：{slug}')
     directory.mkdir(parents=True,exist_ok=True)
     data={'title':title,'description':'请用一到两句话概括文章内容，建议 30—80 字。','publishDate':date.today().isoformat(),'category':'未分类','tags':['待整理'],'featured':False,'draft':True,'autoNumbering':True,'showContents':True,'showSideToc':True}
-    target=directory/'index.md';atomic_save(target,serialize_frontmatter(data,'在这里开始写作。\n\n## 第一个小节\n\n正文内容。\n'),repo_root,backup=False);return target
+    target=directory/'index.md';atomic_save(target,serialize_frontmatter(data,'在这里开始写作。\n\n# 第一个主题\n\n正文内容。\n'),repo_root,backup=False);return target
 
 def preview_route(kind:str,identifier:str='')->str:
     from urllib.parse import quote
@@ -182,6 +195,10 @@ def preview_route(kind:str,identifier:str='')->str:
     if kind=='collection':return f'/collections/{quote(identifier,safe="-._~")}/'
     if kind=='project':return '/projects/'
     return '/'
+
+def astro_server_ready(output:str)->bool:
+    plain=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',output)
+    return 'watching for file changes' in plain or bool(re.search(r'astro\s+v?[\d.]+\s+ready\s+in',plain,re.I))
 
 def create_collection(repo_root:Path,title:str,description:str,slug:str='',subtitle:str='',volume:str='',status:str='ongoing',featured:bool=False,order:int|None=None)->Path:
     if not title.strip() or not description.strip():raise ValueError('合集标题和简介不能为空。')

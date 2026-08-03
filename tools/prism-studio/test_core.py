@@ -1,11 +1,15 @@
 import subprocess,tempfile,unittest
 from pathlib import Path
-from core import article_preview_version,atomic_save,article_assets,category_preview_version,collection_preview_version,content_catalog,copy_images,create_article,create_category,create_collection,delete_category,delete_project_snapshot,delete_trash_entries,ensure_mdx_article,execute_publish,git_content_changes,import_project,list_trash,load_collection_snapshot,load_project_snapshot,migrate_category,move_article,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,reorder_collections,reorder_projects,restore_trash_entry,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,wait_for_pages_deployment
+from core import article_preview_version,astro_server_ready,atomic_save,article_assets,category_preview_version,collection_preview_version,content_catalog,copy_images,create_article,create_category,create_collection,delete_category,delete_project_snapshot,delete_trash_entries,ensure_mdx_article,execute_publish,git_content_changes,image_markdown,import_project,list_trash,load_collection_snapshot,load_project_snapshot,migrate_category,move_article,pages_site_url,preview_route,project_preview_version,publish_commands,reorder_collection,reorder_collections,reorder_projects,restore_trash_entry,save_project_snapshot,serialize_frontmatter,split_frontmatter,trash_article,unique_asset_path,wait_for_pages_deployment
 
 class Result:
     def __init__(self,code=0,out='',err=''):self.returncode=code;self.stdout=out;self.stderr=err
 
 class CoreTests(unittest.TestCase):
+    def test_astro_readiness_ignores_open_port_until_content_index_is_ready(self):
+        self.assertFalse(astro_server_ready('19:24:53 [content] Syncing content'))
+        self.assertTrue(astro_server_ready('\x1b[32m astro  v7.1.4 ready in 2616 ms\x1b[0m'))
+        self.assertTrue(astro_server_ready('watching for file changes...'))
     def test_preview_fingerprints_match_web_runtime(self):
         article={'title':'棱镜','description':'清晰','category':'写作','tags':['A','中文'],'collection':None,'collectionOrder':None,'featured':True,'draft':False,'canonical':None};project={'repo':'o/r','title':'工具','description':'说明','topics':['cli','mac'],'homepage':None,'cover':None,'coverAlt':None,'featured':False,'order':2};collection={'title':'复分析','description':'简介','subtitle':'Complex','volume':'I','status':'ongoing','featured':False,'order':1,'cover':None,'coverAlt':None}
         self.assertEqual(article_preview_version(article,'正文\r\n'),'6634a4746ee55afa94e4b6aa230dc0031a95e4cfd83b716b788352fba1b8e732');self.assertEqual(project_preview_version(project),'6d6f99f07afa98739f4307b830b10663d9c5d75eb99aa562913b08cc4d736482')
@@ -20,6 +24,11 @@ class CoreTests(unittest.TestCase):
     def test_image_collision_and_assets(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'cover.png';source.write_bytes(b'a');article=root/'post';article.mkdir();(article/'cover.png').write_bytes(b'b');copied=copy_images([source],article);self.assertEqual(copied[0].name,'cover-2.png');index=article/'index.md';index.write_text('![封面](./cover-2.png)','utf-8');self.assertEqual(article_assets(index),[index,copied[0]])
+    def test_responsive_image_markdown_and_unique_crop_name(self):
+        self.assertEqual(image_markdown('diagram.png','结构图',64,'总体结构'),'![结构图](./diagram.png "prism:width=64%;caption=总体结构")')
+        self.assertEqual(image_markdown('diagram.png','结构图',900),'![结构图](./diagram.png "prism:width=100%")')
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);(root/'crop.png').write_bytes(b'x');self.assertEqual(unique_asset_path(root,'crop.png').name,'crop-2.png')
     def test_project_embed_converts_markdown_to_mdx(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);article=root/'src/content/blog/note/index.md';article.parent.mkdir(parents=True);article.write_text('正文','utf-8');converted=ensure_mdx_article(article,root);self.assertEqual(converted.name,'index.mdx');self.assertEqual(converted.read_text('utf-8'),'正文');self.assertFalse(article.exists());self.assertEqual(ensure_mdx_article(converted,root),converted)
@@ -30,7 +39,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(delete_trash_entries([trashed],root),1);self.assertEqual(list_trash(root),[])
     def test_create_article_reuses_orphan_slug_directory(self):
         with tempfile.TemporaryDirectory() as folder:
-            root=Path(folder);orphan=root/'src/content/blog/demo2';orphan.mkdir(parents=True);(orphan/'unused.png').write_bytes(b'image');created=create_article(root,'demo2');self.assertEqual(created,orphan/'index.md');self.assertTrue((orphan/'unused.png').exists());data,_=split_frontmatter(created.read_text('utf-8'));self.assertTrue(data['autoNumbering']);self.assertTrue(data['showContents']);self.assertTrue(data['showSideToc'])
+            root=Path(folder);orphan=root/'src/content/blog/demo2';orphan.mkdir(parents=True);(orphan/'unused.png').write_bytes(b'image');created=create_article(root,'demo2');self.assertEqual(created,orphan/'index.md');self.assertTrue((orphan/'unused.png').exists());data,body=split_frontmatter(created.read_text('utf-8'));self.assertTrue(data['autoNumbering']);self.assertTrue(data['showContents']);self.assertTrue(data['showSideToc']);self.assertIn('# 第一个主题',body);self.assertNotIn('## 第一个小节',body)
     def test_collection_can_empty_and_refill_without_losing_articles(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);create_collection(root,'示例合集','用于测试空合集重新加入文章',slug='book');first=create_article(root,'第一篇');second=create_article(root,'第二篇')

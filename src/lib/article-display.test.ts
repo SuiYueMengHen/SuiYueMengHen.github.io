@@ -15,15 +15,31 @@ describe('article display settings', () => {
       .toEqual({ autoNumbering: false, showContents: true, showSideToc: false });
   });
 
-  it('keeps headings in both TOCs when numbering is disabled', () => {
+  it('numbers Markdown heading levels from section through nested symbols', () => {
     const headings = [
-      { depth: 2, slug: 'one', text: '一' },
-      { depth: 3, slug: 'one-one', text: '一点一' },
-      { depth: 4, slug: 'one-one-one', text: '一点一点一' },
+      { depth: 1, slug: 'one', text: '一' },
+      { depth: 2, slug: 'one-one', text: '一点一' },
+      { depth: 3, slug: 'one-one-one', text: '一点一点一' },
+      { depth: 4, slug: 'deep', text: '四级' },
+      { depth: 5, slug: 'deeper', text: '五级' },
+      { depth: 6, slug: 'deepest', text: '六级' },
     ];
     expect(articleTocHeadings(headings, true).map(({ number }) => number))
-      .toEqual(['第1章', '§1.1', '§1.1.1']);
+      .toEqual(['一、', '§1.1', '§1.1.1', '§1.1.1.1', '§1.1.1.1.1', '§1.1.1.1.1.1']);
     expect(articleTocHeadings(headings, false).map(({ text, number }) => [text, number]))
-      .toEqual([['一', ''], ['一点一', ''], ['一点一点一', '']]);
+      .toEqual(headings.map(({ text }) => [text, '']));
+  });
+
+  it('creates implicit parent section numbers when an article starts at ##', () => {
+    expect(articleTocHeadings([
+      { depth:2,slug:'one-one',text:'一点一' },
+      { depth:3,slug:'one-one-one',text:'一点一点一' },
+    ],true).map(({number})=>number)).toEqual(['§1.1','§1.1.1']);
+  });
+
+  it('uses readable Chinese numerals for top-level sections', () => {
+    const headings=Array.from({length:11},(_,index)=>({depth:1,slug:String(index),text:String(index)}));
+    expect(articleTocHeadings(headings,true).map(({number})=>number))
+      .toEqual(['一、','二、','三、','四、','五、','六、','七、','八、','九、','十、','十一、']);
   });
 });

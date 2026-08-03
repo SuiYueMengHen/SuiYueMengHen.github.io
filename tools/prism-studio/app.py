@@ -28,11 +28,11 @@ from PySide6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
 from PySide6.QtWebChannel import QWebChannel
 
 from core import (
-    article_assets, article_preview_version, atomic_save, command_environment, content_catalog, copy_images, create_article, create_collection,
+    article_assets, article_preview_version, astro_server_ready, atomic_save, command_environment, content_catalog, copy_images, create_article, create_collection,
     create_category, delete_category, delete_project_snapshot, delete_trash_entries, ensure_mdx_article, environment_status, execute_publish, find_port,
     git_content_changes, import_project, list_trash, load_collection_snapshot, load_project_snapshot, migrate_category, move_article, normalize_repo, pages_site_url, preview_route, restore_trash_entry,
     category_preview_version, collection_preview_version, project_preview_version, reorder_collection, reorder_collections, reorder_projects, resolve_command, save_collection_snapshot, save_project_snapshot, serialize_frontmatter, split_frontmatter, trash_article,
-    wait_for_pages_deployment,
+    image_markdown, unique_asset_path, wait_for_pages_deployment,
 )
 
 
@@ -97,13 +97,32 @@ class StablePreviewInterceptor(QWebEngineUrlRequestInterceptor):
 class StableMarkdownEditor(QPlainTextEdit):
     """Keep IME composition and the user's insertion point under editor ownership."""
     compositionCommitted = Signal()
+    imagesDropped = Signal(list, int)
 
     def __init__(self,parent=None):
-        super().__init__(parent);self.composing=False
+        super().__init__(parent);self.composing=False;self.setAcceptDrops(True)
 
     def inputMethodEvent(self,event):
         was_composing=self.composing;self.composing=bool(event.preeditString());super().inputMethodEvent(event)
         if not self.composing and (was_composing or event.commitString()):self.compositionCommitted.emit()
+
+    def image_paths(self,event):
+        if not event.mimeData().hasUrls():return []
+        allowed={'.webp','.avif','.png','.jpg','.jpeg'}
+        return [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() in allowed]
+
+    def dragEnterEvent(self,event):
+        if self.image_paths(event):event.acceptProposedAction()
+        else:super().dragEnterEvent(event)
+
+    def dragMoveEvent(self,event):
+        if self.image_paths(event):event.acceptProposedAction()
+        else:super().dragMoveEvent(event)
+
+    def dropEvent(self,event):
+        paths=self.image_paths(event)
+        if not paths:return super().dropEvent(event)
+        cursor=self.cursorForPosition(event.position().toPoint());self.setTextCursor(cursor);self.imagesDropped.emit(paths,cursor.position());event.acceptProposedAction()
 
 
 class PreviewScrollBridge(QObject):
@@ -251,6 +270,28 @@ class CoverCropDialog(QDialog):
     def cropped_image(self):return self.canvas.source.copy(self.canvas.crop_rect()).toImage()
 
 
+class ImageInsertDialog(QDialog):
+    def __init__(self,source:Path,parent=None):
+        super().__init__(parent);self.setWindowTitle(f'插入图片 · {source.name}');self.resize(740,680);pixmap=QPixmap(str(source))
+        if pixmap.isNull():raise ValueError(f'无法读取图片：{source.name}')
+        layout=QVBoxLayout(self);intro=QLabel('设置替代文本、图注与网页显示比例；需要时可在导入前裁切。');intro.setWordWrap(True);layout.addWidget(intro)
+        self.canvas=CropCanvas(pixmap);self.canvas.setMinimumSize(520,292);layout.addWidget(self.canvas,1)
+        form=QFormLayout();self.alt=QLineEdit();self.alt.setPlaceholderText('描述图片内容，用于无障碍阅读（必填）');self.caption=QLineEdit();self.caption.setPlaceholderText('显示在图片下方，可留空');self.width=QSpinBox();self.width.setRange(10,100);self.width.setValue(100);self.width.setSuffix(' %')
+        self.crop=QCheckBox('启用裁切');self.ratio=QComboBox();self.ratio.addItem('16:9 横向',16/9);self.ratio.addItem('3:2 摄影',3/2);self.ratio.addItem('4:3 标准',4/3);self.ratio.addItem('1:1 方形',1.0);self.ratio.addItem('4:5 纵向',4/5)
+        self.zoom=QSlider(Qt.Horizontal);self.zoom.setRange(100,250);self.zoom.setValue(100);self.horizontal=QSlider(Qt.Horizontal);self.horizontal.setRange(-100,100);self.vertical=QSlider(Qt.Horizontal);self.vertical.setRange(-100,100)
+        self.crop_controls=[self.ratio,self.zoom,self.horizontal,self.vertical];[widget.setEnabled(False) for widget in self.crop_controls]
+        self.crop.toggled.connect(lambda enabled:[widget.setEnabled(enabled) for widget in self.crop_controls]);self.ratio.currentIndexChanged.connect(lambda:self.set_ratio(self.ratio.currentData()));self.zoom.valueChanged.connect(lambda value:self.adjust('zoom',value));self.horizontal.valueChanged.connect(lambda value:self.adjust('x_offset',value));self.vertical.valueChanged.connect(lambda value:self.adjust('y_offset',value))
+        form.addRow('替代文本',self.alt);form.addRow('可选图注',self.caption);form.addRow('网页宽度',self.width);form.addRow('',self.crop);form.addRow('裁切比例',self.ratio);form.addRow('裁切缩放',self.zoom);form.addRow('水平位置',self.horizontal);form.addRow('垂直位置',self.vertical);layout.addLayout(form)
+        buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);buttons.button(QDialogButtonBox.Save).setText('插入图片');buttons.button(QDialogButtonBox.Cancel).setText('取消');buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
+
+    def accept(self):
+        if not self.alt.text().strip():QMessageBox.warning(self,'缺少替代文本','请简要描述图片内容。');self.alt.setFocus();return
+        super().accept()
+    def set_ratio(self,value):self.canvas.ratio=float(value);self.canvas.update()
+    def adjust(self,attr,value):setattr(self.canvas,attr,value);self.canvas.update()
+    def result_data(self):return {'alt':self.alt.text().strip(),'caption':self.caption.text().strip(),'width':self.width.value(),'crop':self.crop.isChecked(),'image':self.canvas.source.copy(self.canvas.crop_rect()).toImage() if self.crop.isChecked() else None}
+
+
 class ContentTree(QTreeWidget):
     articleMoved = Signal(str, str, str, list)
     orderChanged = Signal(str, list)
@@ -349,7 +390,7 @@ class ContentTree(QTreeWidget):
 class Studio(QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle('Prism Studio');self.setWindowIcon(QIcon(str(resource_path('assets/prism-studio-icon.png'))));self.resize(1580,960);self.setMinimumSize(1180,760);self.theme=read_app_settings().get('theme','light')
-        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.selected_category='';self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.collection_loading=False;self.collection_original={};self.collection_loaded_state=None;self.category_loading=False;self.category_original_name='';self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_loading=False;self.preview_failures=0;self.preview_dom_attempts=0;self.preview_navigation=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.preview_reply=None;self.preview_network=QNetworkAccessManager(self);self.preview_network.setProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy));self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(lambda *_:QTimer.singleShot(250,self.ensure_preview))
+        self.current_file:Path|None=None;self.selected_kind='';self.selected_path:Path|None=None;self.selected_category='';self.original_metadata={};self.original_body='';self.loaded_view_state=None;self.loading=False;self.document_dirty=False;self.project_loading=False;self.project_original={};self.project_loaded_state=None;self.collection_loading=False;self.collection_original={};self.collection_loaded_state=None;self.category_loading=False;self.category_original_name='';self.catalog={};self.changes={};self.collection_changes={};self.project_changes={};self.content_change_files=[];self.change_refresh_queued=False;self.preview_path='/';self.preview_ready=False;self.preview_loading=False;self.preview_server_ready=False;self.preview_dom_checking=False;self.dev_readiness_buffer='';self.preview_failures=0;self.preview_dom_attempts=0;self.preview_navigation=0;self.preview_request_serial=0;self.preview_patch_generation=0;self.preview_expected_version='';self.preview_starting_until=0.0;self.preview_refresh_pending=False;self.preview_scroll_suppressed_until=0.0;self.applying_preview_scroll=False;self.editor_sync_mode='scroll';self.legacy_preview_restarted=False;self.server_pid=None;self.gh_ready=False;self.executor=ThreadPoolExecutor(max_workers=4,thread_name_prefix='prism-studio');self.environment_future=None;self.change_future=None;self.publish_future=None;self.deployment_future=None;self.sync_future=None;self.project_future=None;self.preview_reply=None;self.preview_network=QNetworkAccessManager(self);self.preview_network.setProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy));self.port=find_port();self.dev=QProcess(self);configure_process(self.dev);self.dev.setProcessChannelMode(QProcess.MergedChannels);self.dev.readyReadStandardOutput.connect(self.handle_dev_output);self.dev.finished.connect(self.preview_process_finished)
         settings=read_app_settings();last_article=Path(settings.get('last_article','')) if settings.get('workspace')==str(ROOT) and settings.get('last_article') else None
         if last_article and last_article.is_file():self.current_file=last_article
         self.save_timer=QTimer(self);self.save_timer.setSingleShot(True);self.save_timer.setInterval(360);self.save_timer.timeout.connect(self.save_current)
@@ -396,7 +437,7 @@ class Studio(QMainWindow):
         self.date=QDateEdit();self.date.setCalendarPopup(True);self.date.setDate(date.today());layout.addRow('发布日期',self.date);self.canonical=QLineEdit();layout.addRow('Canonical URL',self.canonical)
         checks=QHBoxLayout();self.draft=QCheckBox('草稿');self.featured=QCheckBox('首页推荐');checks.addWidget(self.draft);checks.addWidget(self.featured);checks.addStretch();layout.addRow('状态',checks)
         reading_options=QWidget();reading_options_layout=QVBoxLayout(reading_options);reading_options_layout.setContentsMargins(0,0,0,0);reading_options_layout.setSpacing(2)
-        self.auto_numbering=QCheckBox('自动编号章节（第 1 章 / §1.1 / §1.1.1）');self.auto_numbering.setChecked(True)
+        self.auto_numbering=QCheckBox('自动编号章节（# 一、 / ## §1.1 / ### §1.1.1）');self.auto_numbering.setChecked(True)
         self.show_contents=QCheckBox('显示文章开头目录');self.show_contents.setChecked(True)
         self.show_side_toc=QCheckBox('显示随文侧边目录');self.show_side_toc.setChecked(True)
         reading_options_layout.addWidget(self.auto_numbering);reading_options_layout.addWidget(self.show_contents);reading_options_layout.addWidget(self.show_side_toc)
@@ -418,6 +459,7 @@ class Studio(QMainWindow):
         self.collection_title_field=QLineEdit();collection_layout.addRow('合集名称',self.collection_title_field);self.collection_description=QTextEdit();self.collection_description.setMinimumHeight(100);collection_layout.addRow('合集简介',self.collection_description);self.collection_subtitle=QLineEdit();collection_layout.addRow('副标题',self.collection_subtitle);self.collection_volume=QLineEdit();collection_layout.addRow('卷号',self.collection_volume);self.collection_status=QComboBox();self.collection_status.addItem('连载中','ongoing');self.collection_status.addItem('已完成','complete');self.collection_status.addItem('暂停更新','paused');collection_layout.addRow('状态',self.collection_status);self.collection_featured=QCheckBox('重点合集');collection_layout.addRow('展示',self.collection_featured);self.collection_order_hint=QLabel('合集和章节的顺序由左侧内容库决定；直接拖动即可调整。');self.collection_order_hint.setObjectName('muted');self.collection_order_hint.setWordWrap(True);collection_layout.addRow('排序',self.collection_order_hint);self.collection_form_scroll.setWidget(self.collection_form_surface);self.tabs.addTab(self.collection_form_scroll,'合集信息');self.tabs.setTabVisible(2,False)
         self.category_form_scroll=QScrollArea();self.category_form_scroll.setObjectName('formScroll');self.category_form_scroll.viewport().setObjectName('formViewport');self.category_form_scroll.setWidgetResizable(True);self.category_form_scroll.setFrameShape(QFrame.NoFrame);self.category_form_surface=QWidget();self.category_form_surface.setObjectName('formSurface');category_info_layout=QFormLayout(self.category_form_surface);category_info_layout.setContentsMargins(12,14,12,12);category_info_layout.setSpacing(11);category_info_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow);self.category_name_field=QLineEdit();category_info_layout.addRow('分类名称',self.category_name_field);self.category_count=QLabel('0 篇文章');category_info_layout.addRow('当前内容',self.category_count);self.category_info_hint=QLabel('修改名称会自动迁移该分类中的全部散篇；“未分类”是系统保留位置。');self.category_info_hint.setObjectName('muted');self.category_info_hint.setWordWrap(True);category_info_layout.addRow('说明',self.category_info_hint);self.category_form_scroll.setWidget(self.category_form_surface);self.tabs.addTab(self.category_form_scroll,'分类信息');self.tabs.setTabVisible(3,False)
         self.editor=StableMarkdownEditor();self.editor.setObjectName('markdownEditor');self.editor.setMinimumHeight(350);font=QFont('SF Mono',13);font.setStyleHint(QFont.Monospace);self.editor.setFont(font);self.editor.setPlaceholderText('在这里开始写作…')
+        self.editor.imagesDropped.connect(self.insert_dropped_images)
         self.editor.cursorPositionChanged.connect(self.schedule_cursor_sync);self.editor.verticalScrollBar().valueChanged.connect(self.schedule_editor_scroll_sync)
         self.editor.compositionCommitted.connect(self.schedule_save);self.editor.compositionCommitted.connect(self.schedule_cursor_sync)
         self.editor_split=QSplitter(Qt.Vertical);self.editor_split.setChildrenCollapsible(False);self.editor_split.addWidget(self.tabs);self.editor_split.addWidget(self.editor);self.editor_split.setSizes([285,590]);mv.addWidget(self.editor_split,1)
@@ -582,7 +624,7 @@ class Studio(QMainWindow):
         npm=resolve_command('npm')
         if not npm:self.preview_status.setText('缺少 npm');return
         if self.dev.state()!=QProcess.NotRunning:return
-        self.preview_ready=False;self.preview_status.setText('正在启动本地预览…');self.port=find_port();self.preview_starting_until=time.monotonic()+10;self.dev.setWorkingDirectory(str(ROOT));self.dev.start(npm,['run','dev','--','--ignore-lock','--host','127.0.0.1','--port',str(self.port)]);QTimer.singleShot(180,lambda:self.wait_for_preview(0))
+        self.preview_ready=False;self.preview_loading=False;self.preview_server_ready=False;self.preview_dom_checking=False;self.dev_readiness_buffer='';self.preview_status.setText('正在启动本地预览…');self.port=find_port();self.preview_starting_until=time.monotonic()+14;self.dev.setWorkingDirectory(str(ROOT));self.dev.start(npm,['run','dev','--','--ignore-lock','--host','127.0.0.1','--port',str(self.port)]);QTimer.singleShot(180,lambda:self.wait_for_preview(0))
 
     def restart_preview(self,path=None):
         """Rebuild Astro's content index after adding a new collection entry."""
@@ -594,15 +636,25 @@ class Studio(QMainWindow):
         self.start_preview()
 
     def handle_dev_output(self):
-        output=bytes(self.dev.readAllStandardOutput()).decode(errors='replace').rstrip()
+        chunk=bytes(self.dev.readAllStandardOutput()).decode(errors='replace');output=chunk.rstrip()
         if output:self.log.appendPlainText(output)
+        self.dev_readiness_buffer=(self.dev_readiness_buffer+chunk)[-4096:]
         match=re.search(r'https?://(?:127\.0\.0\.1|localhost):(\d+)',output)
         if match:self.port=int(match.group(1))
         pid=re.search(r'pid (\d+)',output)
         if pid and 'already running' not in output:self.server_pid=int(pid.group(1))
+        if not self.preview_server_ready and astro_server_ready(self.dev_readiness_buffer):
+            self.preview_server_ready=True;self.preview_starting_until=0;self.preview_status.setText('本地内容索引已就绪')
+            if not self.preview_loading:QTimer.singleShot(0,self.navigate_preview)
+
+    def preview_process_finished(self,*_):
+        self.preview_server_ready=False;self.preview_dom_checking=False;QTimer.singleShot(250,self.ensure_preview)
 
     def wait_for_preview(self,attempt=0):
-        if self.port_open():self.preview_failures=0;self.preview_starting_until=0;self.navigate_preview();return
+        if self.port_open() and self.preview_server_ready:
+            self.preview_failures=0;self.preview_starting_until=0
+            if not self.preview_loading:self.navigate_preview()
+            return
         if attempt<100:QTimer.singleShot(180,lambda:self.wait_for_preview(attempt+1))
         else:self.preview_status.setText('正在自动恢复…')
 
@@ -614,7 +666,7 @@ class Studio(QMainWindow):
     def ensure_preview(self):
         if self.port_open():
             self.preview_failures=0
-            if not self.preview_ready and not self.preview_loading:self.navigate_preview()
+            if self.preview_server_ready and not self.preview_ready and not self.preview_loading and not self.preview_dom_checking:self.navigate_preview()
             return
         self.preview_ready=False;self.preview_loading=False;self.preview_failures+=1;self.preview_status.setText('正在自动恢复…')
         if self.preview_failures>=2 and time.monotonic()>self.preview_starting_until:self.preview_failures=0;self.start_preview()
@@ -622,31 +674,31 @@ class Studio(QMainWindow):
     def preview_url(self):return QUrl(f'http://127.0.0.1:{self.port}{self.preview_path}')
     def navigate_preview(self,path=None):
         if path is not None:self.preview_path=path
-        self.preview_navigation+=1;self.preview_patch_generation+=1;self.preview_dom_attempts=0;token=self.preview_navigation;self.preview_ready=False;self.preview_loading=True;self.preview_status.setText('正在打开预览…');self.try_preview_navigation(token,0)
+        self.preview_navigation+=1;self.preview_patch_generation+=1;self.preview_dom_attempts=0;self.preview_dom_checking=False;token=self.preview_navigation;self.preview_ready=False;self.preview_loading=True;self.preview_status.setText('正在打开预览…');self.try_preview_navigation(token,0)
 
     def try_preview_navigation(self,token,attempt):
         if token!=self.preview_navigation:return
-        if not self.port_open():
+        if not self.port_open() or not self.preview_server_ready:
             if time.monotonic()>self.preview_starting_until and self.dev.state()==QProcess.NotRunning:self.start_preview()
             if attempt<80:return QTimer.singleShot(180,lambda:self.try_preview_navigation(token,attempt+1))
             self.preview_loading=False;self.preview_status.setText('预览服务连接失败 · 正在重试');return
         target=self.preview_url()
         if self.preview.url()==target and self.preview_ready:self.refresh_preview_fragment();return
-        self.preview_loading=True
+        self.preview_loading=True;self.preview_request_serial+=1;serial=self.preview_request_serial
         if self.preview.url()==target:self.preview.reload()
         else:self.preview.setUrl(target)
-        QTimer.singleShot(1800,lambda:self.verify_preview_navigation(token,attempt))
+        QTimer.singleShot(1800,lambda:self.verify_preview_navigation(token,attempt,serial))
 
-    def verify_preview_navigation(self,token,attempt):
-        if token!=self.preview_navigation or self.preview_ready:return
+    def verify_preview_navigation(self,token,attempt,serial):
+        if token!=self.preview_navigation or serial!=self.preview_request_serial or self.preview_ready or self.preview_dom_checking:return
         self.preview_loading=False
         if attempt<4:self.preview_status.setText('页面载入较慢 · 自动重试');self.try_preview_navigation(token,attempt+1)
         else:self.preview_status.setText('页面载入失败 · 点击文章重试')
 
     def preview_loaded(self,success):
         loaded=self.preview.url();on_local_preview=loaded.host()=='127.0.0.1' and loaded.port()==self.port
-        self.preview_loading=False
         if success and on_local_preview:
+            self.preview_loading=True;self.preview_dom_checking=True
             article_route=preview_route('article',self.current_file.parent.name) if self.selected_kind=='article' and self.current_file else ''
             collection_route=preview_route('collection',self.selected_path.stem) if self.selected_kind=='collection' and self.selected_path else ''
             if article_route and self.preview_path==article_route:selector='.prose';expected_version=self.preview_expected_version;expected_id=''
@@ -655,10 +707,14 @@ class Studio(QMainWindow):
             elif self.selected_kind=='category' and self.preview_path=='/categories/':selector='[data-preview-kind="categories"]';expected_version=self.preview_expected_version;expected_id=''
             else:selector='#main-content';expected_version='';expected_id=''
             script=f"(()=>{{const node=document.querySelector({json.dumps(selector)});if(!node)return false;const expectedVersion={json.dumps(expected_version)},expectedId={json.dumps(expected_id)};if(expectedVersion&&node.dataset.contentVersion!==expectedVersion)return false;if(expectedId&&node.dataset.previewId!==expectedId)return false;return !document.querySelector('[data-preview-kind=\"not-found\"]')}})()"
-            self.preview.page().runJavaScript(script,self.confirm_preview_dom)
-        elif self.port_open():QTimer.singleShot(250,lambda:self.try_preview_navigation(self.preview_navigation,0))
+            navigation=self.preview_navigation;self.preview.page().runJavaScript(script,lambda ready:self.confirm_preview_dom(ready,navigation))
+        else:
+            self.preview_loading=False;self.preview_dom_checking=False
+            if self.port_open() and self.preview_server_ready:QTimer.singleShot(250,lambda:self.try_preview_navigation(self.preview_navigation,0))
 
-    def confirm_preview_dom(self,ready):
+    def confirm_preview_dom(self,ready,navigation):
+        if navigation!=self.preview_navigation:return
+        self.preview_dom_checking=False
         if not ready:
             self.preview_ready=False;self.preview_loading=False;self.preview_dom_attempts+=1
             if self.preview_dom_attempts<40:self.preview_status.setText('正在等待最新页面…');QTimer.singleShot(150,lambda:self.try_preview_navigation(self.preview_navigation,0))
@@ -1140,11 +1196,33 @@ class Studio(QMainWindow):
     def insert_images(self):
         if not self.current_file:return QMessageBox.information(self,'插入图片','请先选择一篇文章。')
         names,_=QFileDialog.getOpenFileNames(self,'选择图片','','Images (*.webp *.avif *.png *.jpg *.jpeg)',options=QFileDialog.Option.DontUseNativeDialog)
+        if not names:return
+        self.insert_image_files(names)
+
+    def insert_dropped_images(self,names,position):
+        if not self.current_file:return QMessageBox.information(self,'拖入图片','请先选择一篇文章，再把图片拖入 Markdown 编辑区。')
+        cursor=self.editor.textCursor();cursor.setPosition(max(0,min(int(position),self.editor.document().characterCount()-1)));self.editor.setTextCursor(cursor)
+        QTimer.singleShot(0,lambda:self.insert_image_files(names))
+
+    def insert_image_files(self,names):
         try:
-            for target in copy_images([Path(name) for name in names],self.current_file.parent):
-                alt,ok=QInputDialog.getText(self,'图片替代文本',f'{target.name} 的替代文本')
-                if ok and alt.strip():self.editor.insertPlainText(f'![{alt.strip()}](./{target.name})')
-        except ValueError as error:QMessageBox.warning(self,'图片导入失败',str(error))
+            placements=[]
+            for name in names:
+                dialog=ImageInsertDialog(Path(name),self)
+                if dialog.exec()!=QDialog.Accepted:return
+                placements.append((Path(name),dialog.result_data()))
+            snippets=[]
+            for source,placement in placements:
+                if placement['crop']:
+                    extension='.jpg' if source.suffix.lower() in {'.jpg','.jpeg'} else '.png';target=unique_asset_path(self.current_file.parent,f'{source.stem}-cropped{extension}')
+                    if not placement['image'].save(str(target),quality=92):raise ValueError(f'无法保存裁切图片：{source.name}')
+                else:target=copy_images([source],self.current_file.parent)[0]
+                snippets.append(image_markdown(target.name,placement['alt'],placement['width'],placement['caption']))
+            gallery=len(snippets)>1 and QMessageBox.question(self,'图片排列','是否将这些图片作为可自动换行的并排图库插入？',QMessageBox.Yes|QMessageBox.No,QMessageBox.Yes)==QMessageBox.Yes
+            block='\n\n'.join(snippets)
+            if gallery:block=f':::gallery\n\n{block}\n\n:::'
+            cursor=self.editor.textCursor();cursor.insertText(('\n\n' if cursor.position()>0 else '')+block+'\n\n');self.editor.setTextCursor(cursor);self.document_dirty=True;self.schedule_save();self.save_state.setText('● 图片已插入 · 正在同步预览')
+        except (OSError,ValueError) as error:QMessageBox.warning(self,'图片导入失败',str(error))
 
     def add_project(self,embed=False):
         if embed and not self.current_file:return QMessageBox.information(self,'请先选择文章','插入项目卡片前，请先打开一篇 Markdown/MDX 文章。')

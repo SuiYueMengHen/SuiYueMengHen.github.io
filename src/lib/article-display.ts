@@ -18,27 +18,25 @@ export function articleDisplaySettings(data: ArticleDisplaySource) {
   };
 }
 
-export function articleTocHeadings(headings: ArticleHeading[], autoNumbering = true) {
-  let chapter = 0;
-  let section = 0;
-  let subsection = 0;
+export function chineseSectionNumber(value: number) {
+  if (!Number.isInteger(value) || value <= 0) return String(value);
+  const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  if (value < 10) return digits[value];
+  if (value < 20) return `十${value % 10 ? digits[value % 10] : ''}`;
+  if (value < 100) return `${digits[Math.floor(value / 10)]}十${value % 10 ? digits[value % 10] : ''}`;
+  return String(value);
+}
 
-  return headings.filter(({ depth }) => depth >= 2 && depth <= 4).map((heading) => {
-    if (heading.depth === 2) {
-      chapter += 1;
-      section = 0;
-      subsection = 0;
-    } else if (heading.depth === 3) {
-      section += 1;
-      subsection = 0;
-    } else {
-      subsection += 1;
-    }
-    const number = !autoNumbering ? '' : heading.depth === 2
-      ? `第${chapter}章`
-      : heading.depth === 3
-        ? `§${chapter}.${section}`
-        : `§${chapter}.${section}.${subsection}`;
+export function articleTocHeadings(headings: ArticleHeading[], autoNumbering = true) {
+  const counts = Array(7).fill(0) as number[];
+  return headings.filter(({ depth }) => depth >= 1 && depth <= 6).map((heading) => {
+    const depth=heading.depth;
+    for(let level=1;level<depth;level+=1)if(counts[level]===0)counts[level]=1;
+    counts[depth]+=1;
+    for(let level=depth+1;level<=6;level+=1)counts[level]=0;
+    const number = !autoNumbering ? '' : depth === 1
+      ? `${chineseSectionNumber(counts[1])}、`
+      : `§${counts.slice(1,depth+1).join('.')}`;
     return { ...heading, number };
   });
 }

@@ -29,7 +29,7 @@ npm run build
 npm run post:new -- --title "文章标题"
 ```
 
-脚本会创建 `src/content/blog/文章-slug/index.md`。文章图片放在同一个目录，通过 `![替代文本](./图片.webp)` 引用。建议使用 WebP 或 AVIF，并填写准确的替代文本。
+脚本会创建 `src/content/blog/文章-slug/index.md`。文章图片放在同一个目录。普通图片可继续写成 `![替代文本](./图片.webp)`；需要控制宽度或图注时使用 `![替代文本](./图片.webp "prism:width=64%;caption=可选图注")`，其中宽度限制为 10%—100%，`;caption=...` 可以省略。该语法同时兼容 Markdown 与 MDX。
 
 ### 2. 编辑与预览
 
@@ -47,7 +47,7 @@ collection: digital-garden # 可选：src/content/collections 中的 slug
 collectionOrder: 1 # 加入合集时必填，正整数且不可重复
 featured: false
 draft: true
-autoNumbering: true # 自动显示“第 1 章 / §1.1 / §1.1.1”
+autoNumbering: true # 自动显示“一、 / §1.1 / §1.1.1”
 showContents: true # 显示文章开头的书籍式目录
 showSideToc: true # 显示跟随阅读位置的侧边目录
 canonical: "https://example.com/original" # 可选
@@ -70,13 +70,37 @@ $$
 
 公式由 MathJax 在构建阶段渲染为 SVG，不需要浏览器运行额外脚本；正式网页与 Prism Studio 实时预览共用同一套输出。
 
+超长块级公式会优先在顶层运算符处转换为 `aligned` 多行结构；分数、矩阵、cases 与手写多行环境不会被拆开。手机端保持可读字号，仍无法安全分段的公式只在公式自身区域横向滚动，不会撑宽整页。
+
+### 插入响应式图片
+
+单图缩放与图注：
+
+```markdown
+![系统结构图](./architecture.webp "prism:width=72%;caption=图 1：系统结构")
+```
+
+多图并排使用图库围栏，每张图都能指定自己的宽度；空间不足时会自动换行：
+
+```markdown
+:::gallery
+
+![输入状态](./before.webp "prism:width=48%;caption=调整前")
+
+![输出状态](./after.webp "prism:width=48%;caption=调整后")
+
+:::
+```
+
+Prism Studio 的“插入图片”会可视化设置替代文本、可选图注、10%—100% 显示宽度，并提供裁切开关、比例、缩放和位置调整；也可以直接将图片文件拖到 Markdown 光标位置。一次选择或拖入多张图片时可直接生成上述图库语法。
+
 ### 章节与目录
 
 文章标题会自动编号，不需要在 Markdown 中手写序号：
 
-- `##` 显示为“第 1 章”
-- `###` 显示为“§1.1”
-- `####` 显示为“§1.1.1”
+- `#` 显示为“一、”（后续依次为“二、”“三、”）
+- `##` 显示为“§1.1”
+- `###` 显示为“§1.1.1”
 
 文章页会同时生成书籍式目录和桌面端随文目录。两者均可点击跳转；随文目录会根据阅读位置自动高亮当前章节。
 

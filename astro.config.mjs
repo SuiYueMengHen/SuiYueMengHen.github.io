@@ -5,6 +5,9 @@ import { unified } from '@astrojs/markdown-remark';
 import remarkMath from 'remark-math';
 import rehypeMathjax from 'rehype-mathjax/svg';
 import { rehypeSourcePositions } from './src/lib/rehype-source-positions.mjs';
+import { rehypeResponsiveMedia } from './src/lib/rehype-responsive-media.mjs';
+import { remarkSmartMathBreaks } from './src/lib/remark-smart-math-breaks.mjs';
+import { rehypeEquationTags } from './src/lib/rehype-equation-tags.mjs';
 
 export default defineConfig({
   site: 'https://suiyuemenghen.github.io',
@@ -13,9 +16,11 @@ export default defineConfig({
   markdown: {
     processor: unified({
       gfm: true,
-      remarkPlugins: [remarkMath],
+      remarkPlugins: [remarkMath, remarkSmartMathBreaks],
       rehypePlugins: [
         rehypeSourcePositions,
+        rehypeResponsiveMedia,
+        rehypeEquationTags,
         [rehypeMathjax, {
           svg: {
             displayAlign: 'center',
