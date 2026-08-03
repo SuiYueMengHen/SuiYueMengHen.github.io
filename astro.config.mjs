@@ -7,7 +7,7 @@ import rehypeMathjax from 'rehype-mathjax/svg';
 import { rehypeSourcePositions } from './src/lib/rehype-source-positions.mjs';
 import { rehypeResponsiveMedia } from './src/lib/rehype-responsive-media.mjs';
 import { remarkSmartMathBreaks } from './src/lib/remark-smart-math-breaks.mjs';
-import { rehypeEquationTags } from './src/lib/rehype-equation-tags.mjs';
+import { rehypeAttachEquationTags, rehypeExtractEquationTags } from './src/lib/rehype-equation-tags.mjs';
 
 export default defineConfig({
   site: 'https://suiyuemenghen.github.io',
@@ -20,7 +20,7 @@ export default defineConfig({
       rehypePlugins: [
         rehypeSourcePositions,
         rehypeResponsiveMedia,
-        rehypeEquationTags,
+        rehypeExtractEquationTags,
         [rehypeMathjax, {
           svg: {
             displayAlign: 'center',
@@ -33,6 +33,7 @@ export default defineConfig({
             tags: 'ams',
           },
         }],
+        rehypeAttachEquationTags,
       ],
     }),
     shikiConfig: {

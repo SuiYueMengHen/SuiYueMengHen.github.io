@@ -1,9 +1,20 @@
 const excluded=/\\begin\s*\{|\\\\|\\(?:matrix|cases|aligned|gathered|split)\b/;
-const relationCommands=['\\Longleftrightarrow','\\Longrightarrow','\\Rightarrow','\\leftrightarrow','\\rightarrow','\\implies','\\iff','\\leqslant','\\geqslant','\\approx','\\equiv','\\leq','\\geq','\\sim','\\qquad','\\quad'];
+const relationCommands=[
+  '\\Longleftrightarrow','\\Longrightarrow','\\Rightarrow','\\leftrightarrow','\\rightarrow',
+  '\\implies','\\iff','\\leqslant','\\geqslant','\\approx','\\equiv','\\propto',
+  '\\notin','\\parallel','\\leq','\\geq','\\sim','\\in','\\perp',
+  '\\times','\\cdot','\\cup','\\cap','\\land','\\lor','\\qquad','\\quad',
+];
 
 function detachTag(value){
   const match=value.match(/\s*(\\tag\{[^{}]*\})\s*$/s);
   return match?{body:value.slice(0,match.index).trimEnd(),tag:match[1]}:{body:value.trim(),tag:''};
+}
+
+function fixedDelimiters(value){
+  // MathJax cannot carry a \left…\right pair across aligned rows. Fixed-size
+  // delimiters preserve the intended glyph without blocking semantic wrapping.
+  return value.replace(/\\left(?=[([{.|])/g,'\\bigl').replace(/\\right(?=[)\]}.|])/g,'\\bigr');
 }
 
 function breakCandidates(value){
@@ -26,8 +37,12 @@ function breakCandidates(value){
 
 export function smartBreakMath(value,target=28) {
   if(excluded.test(value))return value;
-  const {body,tag}=detachTag(value);
-  if(body.length<Math.max(48,Math.floor(target*1.15)))return value;
+  let {body,tag}=detachTag(value);
+  // TeX commands such as fractions render much wider than their source length.
+  // Wrap as soon as an expression approaches the mobile measure; never wait for
+  // the generated SVG to overflow and never compensate by scaling the glyphs.
+  if(body.length<Math.floor(target*.95))return value;
+  body=fixedDelimiters(body);
   const candidates=breakCandidates(body);
   if(!candidates.length)return value;
   const parts=[];let start=0;
@@ -51,4 +66,4 @@ export function remarkSmartMathBreaks(){
   };
 }
 
-export const smartMathInternals={breakCandidates,detachTag};
+export const smartMathInternals={breakCandidates,detachTag,fixedDelimiters};

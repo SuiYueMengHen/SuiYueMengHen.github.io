@@ -17,4 +17,12 @@ describe('smart display-math wrapping',()=>{
     const source='\\left|\\sum_{i=1}^n a_i b_i\\right|^2 \\leqslant \\sum_{i=1}^n |a_i|^2 \\sum_{i=1}^n |b_i|^2 \\tag{14}';
     const result=smartBreakMath(source);expect(result).toContain('\\\\\n&{}\\leqslant');expect(result).toMatch(/\\tag\{14\}$/);
   });
+  it('wraps long products at semantic operators instead of scaling the formula',()=>{
+    const source='A_1\\times A_2\\times A_3\\times A_4\\times A_5\\times A_6\\times A_7\\times A_8\\times A_9\\times A_{10}';
+    const result=smartBreakMath(source,24);expect(result).toContain('\\begin{aligned}');expect(result).toContain('\\\\\n&{}\\times');
+  });
+  it('uses fixed delimiters when a parenthesized expression spans wrapped rows',()=>{
+    const source='x=\\left(a_1+a_2+a_3+a_4+a_5+a_6+a_7+a_8+a_9+a_{10}\\right)';
+    const result=smartBreakMath(source,22);expect(result).toContain('\\bigl(');expect(result).toContain('\\bigr)');expect(result).not.toContain('\\left(');
+  });
 });
