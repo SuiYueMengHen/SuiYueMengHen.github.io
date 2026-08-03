@@ -2,6 +2,7 @@
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import ReadingSettings from '../components/ReadingSettings.astro';
+import MathJaxRuntime from '../components/MathJaxRuntime.astro';
 import { siteConfig } from '../config/site';
 import 'computer-modern/cmu-serif.css';
 import 'computer-modern/cmu-sans-serif.css';
@@ -48,6 +49,7 @@ const jsonLd = type === 'article'
       (() => { const root=document.documentElement;const saved=localStorage.getItem('prism-theme');const dark=matchMedia('(prefers-color-scheme: dark)').matches;root.dataset.theme=saved||(dark?'dark':'light');try{const s=JSON.parse(localStorage.getItem('prism-reader-settings')||'{}');if(s.fontSize)root.style.setProperty('--reader-font-size',`${s.fontSize}px`);if(s.lineHeight)root.style.setProperty('--reader-line-height',s.lineHeight);if(s.contentWidth)root.style.setProperty('--measure',`${s.contentWidth}rem`);if('paragraphIndent' in s){delete s.paragraphIndent;localStorage.setItem('prism-reader-settings',JSON.stringify(s))}}catch{}})();
     </script>
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <MathJaxRuntime />
     <title>{pageTitle}</title>
   </head>
   <body>

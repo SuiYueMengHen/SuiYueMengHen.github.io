@@ -10,3 +10,4 @@ tools/prism-studio/build/
 tools/prism-studio/dist/
 tools/prism-studio/__pycache__/
 tools/prism-studio/assets/PrismStudio.iconset/
+public/vendor/mathjax/

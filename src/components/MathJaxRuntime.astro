@@ -1,0 +1,51 @@
+<script is:inline>
+  (()=>{
+    const readyClass='mathjax-ready';let resizeTimer=0,lastWidth=0,rendering=Promise.resolve();
+    window.MathJax={
+      loader:{paths:{fonts:'/vendor/mathjax/fonts'}},
+      tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],processEscapes:true,tags:'ams'},
+      output:{displayOverflow:'linebreak',linebreaks:{inline:true,width:'98%',lineleading:.24},font:'mathjax-newcm'},
+      svg:{fontCache:'global'},
+      options:{enableMenu:false},
+      startup:{typeset:false}
+    };
+    const typeset=async(container=document.body)=>{
+      if(!container||!window.MathJax?.startup?.promise)return;
+      rendering=rendering.then(async()=>{
+        await window.MathJax.startup.promise;
+        await window.MathJax.typesetPromise?.([container]);
+        document.documentElement.classList.add(readyClass);
+        dispatchEvent(new CustomEvent('prism:math-ready',{detail:{container}}));
+      }).catch((error)=>console.error('MathJax responsive typesetting failed',error));
+      return rendering;
+    };
+    const reflow=async()=>{
+      if(!window.MathJax?.startup?.promise)return;
+      rendering=rendering.then(async()=>{
+        await window.MathJax.startup.promise;
+        window.MathJax.startup.document.state(0);
+        window.MathJax.texReset?.();
+        await window.MathJax.typesetPromise?.();
+        dispatchEvent(new CustomEvent('prism:math-ready',{detail:{container:document.body}}));
+      }).catch((error)=>console.error('MathJax responsive reflow failed',error));
+      return rendering;
+    };
+    window.__prismTypesetMath=typeset;
+    window.__prismReflowMath=reflow;
+    addEventListener('DOMContentLoaded',()=>typeset(document.body),{once:true});
+    addEventListener('load',()=>{
+      const prose=document.querySelector('.prose');if(!prose||typeof ResizeObserver==='undefined')return;
+      lastWidth=prose.getBoundingClientRect().width;
+      new ResizeObserver((entries)=>{
+        const width=entries[0]?.contentRect.width||0;if(!width||Math.abs(width-lastWidth)<4)return;lastWidth=width;
+        clearTimeout(resizeTimer);resizeTimer=setTimeout(reflow,90);
+      }).observe(prose);
+    },{once:true});
+  })();
+</script>
+<script is:inline defer src="/vendor/mathjax/tex-svg.js"></script>
+<style is:global>
+  html:not(.mathjax-ready) .math-source{visibility:hidden}
+  .math-source--display{display:block;min-height:2.6em}
+  .math-source--inline{display:inline}
+</style>

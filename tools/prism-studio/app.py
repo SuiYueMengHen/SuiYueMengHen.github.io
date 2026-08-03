@@ -802,7 +802,7 @@ class Studio(QMainWindow):
             let changed=0;
             const replace=(selector)=>{{
               const current=document.querySelector(selector),next=nextDoc.querySelector(selector);
-              if(current&&next){{let nodeChanged=false;if(current.className!==next.className){{current.className=next.className;nodeChanged=true;}}for(const attribute of [...current.attributes])if(!next.hasAttribute(attribute.name)){{current.removeAttribute(attribute.name);nodeChanged=true;}}for(const attribute of [...next.attributes])if(current.getAttribute(attribute.name)!==attribute.value){{current.setAttribute(attribute.name,attribute.value);nodeChanged=true;}}if(current.innerHTML!==next.innerHTML){{current.replaceChildren(...[...next.childNodes].map(node=>document.importNode(node,true)));nodeChanged=true;}}if(nodeChanged)changed++;}}
+              if(current&&next){{let nodeChanged=false;if(current.className!==next.className){{current.className=next.className;nodeChanged=true;}}for(const attribute of [...current.attributes])if(!next.hasAttribute(attribute.name)){{current.removeAttribute(attribute.name);nodeChanged=true;}}for(const attribute of [...next.attributes])if(current.getAttribute(attribute.name)!==attribute.value){{current.setAttribute(attribute.name,attribute.value);nodeChanged=true;}}if(current.innerHTML!==next.innerHTML){{if(selector==='.prose')window.MathJax?.typesetClear?.([current]);current.replaceChildren(...[...next.childNodes].map(node=>document.importNode(node,true)));nodeChanged=true;}}if(nodeChanged)changed++;}}
               else if(current&&!next){{current.remove();changed++;}}
               else if(!current&&next){{const clone=document.importNode(next,true);if(selector==='.book-toc'||selector==='.side-toc')oldAnchor.before(clone);else oldAnchor.after(clone);changed++;}}
             }};
@@ -810,7 +810,10 @@ class Studio(QMainWindow):
             document.title=nextDoc.title||document.title;
             document.querySelectorAll('.prose pre').forEach(pre=>{{if(pre.querySelector('.copy-code'))return;const button=document.createElement('button');button.className='copy-code';button.type='button';button.textContent='复制';button.addEventListener('click',async()=>{{await navigator.clipboard.writeText(pre.innerText.replace(/^复制/,''));button.textContent='已复制';setTimeout(()=>button.textContent='复制',1200)}});pre.append(button)}});
             window.__prismInitCategories?.();
-            const patchedAnchor=document.querySelector(anchorSelector);if(!patchedAnchor)return false;scrollTo({{top:patchedAnchor.getBoundingClientRect().top+scrollY+relative,behavior:'instant'}});
+            const patchedAnchor=document.querySelector(anchorSelector);if(!patchedAnchor)return false;
+            const restorePosition=()=>scrollTo({{top:patchedAnchor.getBoundingClientRect().top+scrollY+relative,behavior:'instant'}});
+            const mathTarget=document.querySelector('.prose'),mathUpdate=mathTarget&&window.__prismTypesetMath?.(mathTarget);
+            if(mathUpdate?.then)mathUpdate.then(restorePosition);else restorePosition();
             document.documentElement.dataset.prismPatch={json.dumps(str(generation))};
             return true;
           }}catch(error){{console.warn('Prism patch deferred',error);return false}}
