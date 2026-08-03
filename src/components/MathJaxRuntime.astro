@@ -4,7 +4,7 @@
     window.MathJax={
       loader:{paths:{fonts:'/vendor/mathjax/fonts'}},
       tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],processEscapes:true,tags:'ams'},
-      output:{displayOverflow:'linebreak',linebreaks:{inline:true,width:'98%',lineleading:.24},font:'mathjax-newcm'},
+      output:{displayOverflow:'linebreak',linebreaks:{inline:false,width:'100%',lineleading:.24},font:'mathjax-newcm'},
       svg:{fontCache:'global'},
       options:{enableMenu:false},
       startup:{typeset:false}
@@ -46,6 +46,8 @@
 <script is:inline defer src="/vendor/mathjax/tex-svg.js"></script>
 <style is:global>
   html:not(.mathjax-ready) .math-source{visibility:hidden}
-  .math-source--display{display:block;min-height:2.6em}
-  .math-source--inline{display:inline}
+  .math-source--display{display:block;min-height:2.6em;text-align:center}
+  .math-source--inline{display:inline;white-space:nowrap}
+  .math-source--inline>mjx-container:not([display='true']){display:inline-block!important;width:auto!important;max-width:none!important;white-space:nowrap}
+  .math-source--display>mjx-container[display='true']>svg{position:relative;left:50%;margin-inline:0;transform:translateX(-50%)}
 </style>
