@@ -1,0 +1,12 @@
+repo: "SuiYueMengHen/Desktop-Downloader-win"
+title: "Desktop-Downloader-win"
+description: "Desktop-Downloader for windows"
+language: "Python"
+stars: 1
+forks: 0
+license: "MIT"
+topics: ["bilibili", "desktop-app", "downloader", "python"]
+homepage: null
+featured: false
+order: 100
+syncedAt: "2026-08-04T01:19:34.237216+00:00"

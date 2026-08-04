@@ -1,0 +1,12 @@
+repo: "SuiYueMengHen/EMFieldStudio"
+title: "EMFieldStudio"
+description: "A Python desktop studio for electromagnetic field visualization and experiments."
+language: "Python"
+stars: 0
+forks: 0
+license: "MIT"
+topics: []
+homepage: null
+featured: false
+order: 100
+syncedAt: "2026-08-04T01:21:49.972624+00:00"

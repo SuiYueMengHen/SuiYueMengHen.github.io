@@ -1,0 +1,12 @@
+repo: "SuiYueMengHen/ClearScan"
+title: "ClearScan"
+description: "A privacy-focused Android document scanner with CameraX scanning, perspective correction, image enhancement, PDF tools, multilingual offline translation, local document management, and light/dark theme support."
+language: "Kotlin"
+stars: 0
+forks: 0
+license: "MIT"
+topics: ["android", "documents", "jetpack-compose", "kotlin", "privacy", "scanner"]
+homepage: null
+featured: false
+order: 100
+syncedAt: "2026-08-04T01:20:48.954100+00:00"

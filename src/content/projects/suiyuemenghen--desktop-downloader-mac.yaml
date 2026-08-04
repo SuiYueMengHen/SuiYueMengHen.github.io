@@ -1,0 +1,12 @@
+repo: "SuiYueMengHen/Desktop-Downloader-mac"
+title: "Desktop-Downloader-mac"
+description: "A macOS desktop video downloader built with Python, PySide6, and a Fluent Design interface."
+language: "Python"
+stars: 1
+forks: 0
+license: "MIT"
+topics: ["bilibili", "desktop-app", "downloader", "pyside6", "python"]
+homepage: null
+featured: false
+order: 100
+syncedAt: "2026-08-04T01:20:18.863750+00:00"
