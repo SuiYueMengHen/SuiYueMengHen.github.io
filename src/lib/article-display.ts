@@ -10,6 +10,11 @@ export type ArticleHeading = {
   text: string;
 };
 
+export type TocTextPart = {
+  kind: 'text' | 'math';
+  value: string;
+};
+
 export function articleDisplaySettings(data: ArticleDisplaySource) {
   return {
     autoNumbering: data.autoNumbering ?? true,
@@ -39,4 +44,29 @@ export function articleTocHeadings(headings: ArticleHeading[], autoNumbering = t
       : `§${counts.slice(1,depth+1).join('.')}`;
     return { ...heading, number };
   });
+}
+
+/**
+ * Restore the inline-math wrapper that is lost when Astro exposes rendered
+ * headings as plain text. Single-dollar TeX is inline; double-dollar TeX is
+ * deliberately left alone because it is display math and invalid in a title.
+ */
+export function articleTocTextParts(text: string): TocTextPart[] {
+  const parts: TocTextPart[] = [];
+  const inlineMath = /\\\([\s\S]*?\\\)|(?<!\$)\$(?!\$)(?:\\.|[^$\\])+\$(?!\$)/g;
+  let cursor = 0;
+
+  for (const match of text.matchAll(inlineMath)) {
+    const start = match.index ?? 0;
+    if (start > cursor) parts.push({ kind: 'text', value: text.slice(cursor, start) });
+    const source = match[0];
+    parts.push({
+      kind: 'math',
+      value: source.startsWith('\\(') ? source : `\\(${source.slice(1, -1)}\\)`,
+    });
+    cursor = start + source.length;
+  }
+
+  if (cursor < text.length) parts.push({ kind: 'text', value: text.slice(cursor) });
+  return parts.length ? parts : [{ kind: 'text', value: text }];
 }

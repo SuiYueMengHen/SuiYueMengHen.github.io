@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { articleDisplaySettings, articleTocHeadings } from './article-display';
+import { articleDisplaySettings, articleTocHeadings, articleTocTextParts } from './article-display';
 
 describe('article display settings', () => {
   it('keeps every reading aid enabled for legacy articles', () => {
@@ -41,5 +41,18 @@ describe('article display settings', () => {
     const headings=Array.from({length:11},(_,index)=>({depth:1,slug:String(index),text:String(index)}));
     expect(articleTocHeadings(headings,true).map(({number})=>number))
       .toEqual(['一、','二、','三、','四、','五、','六、','七、','八、','九、','十、','十一、']);
+  });
+
+  it('keeps single-dollar heading math inline without treating display math as inline', () => {
+    expect(articleTocTextParts('周期函数 $P_\lambda(t)$ 的展开')).toEqual([
+      { kind: 'text', value: '周期函数 ' },
+      { kind: 'math', value: '\\(P_\lambda(t)\\)' },
+      { kind: 'text', value: ' 的展开' },
+    ]);
+    expect(articleTocTextParts('周期函数 \\(P_\lambda(t)\\) 的展开')[1])
+      .toEqual({ kind: 'math', value: '\\(P_\lambda(t)\\)' });
+    expect(articleTocTextParts('错误标题 $$P_\lambda(t)$$')).toEqual([
+      { kind: 'text', value: '错误标题 $$P_\lambda(t)$$' },
+    ]);
   });
 });
