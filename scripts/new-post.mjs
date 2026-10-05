@@ -3,19 +3,32 @@ import path from 'node:path';
 
 const args = process.argv.slice(2);
 const titleIndex = args.indexOf('--title');
-const title = titleIndex >= 0 ? args[titleIndex + 1] : args.filter((item) => !item.startsWith('--')).join(' ');
+const title =
+  titleIndex >= 0
+    ? args[titleIndex + 1]
+    : args.filter((item) => !item.startsWith('--')).join(' ');
 if (!title) {
   console.error('用法：npm run post:new -- --title "文章标题"');
   process.exit(1);
 }
-const slug = title.toLowerCase().normalize('NFKC').replace(/[^\p{Letter}\p{Number}]+/gu, '-').replace(/^-|-$/g, '') || `note-${Date.now()}`;
+const slug =
+  title
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
+    .replace(/^-|-$/g, '') || `note-${Date.now()}`;
 const directory = path.join(process.cwd(), 'src/content/blog', slug);
-if (fs.existsSync(path.join(directory, 'index.md')) || fs.existsSync(path.join(directory, 'index.mdx'))) {
+if (
+  fs.existsSync(path.join(directory, 'index.md')) ||
+  fs.existsSync(path.join(directory, 'index.mdx'))
+) {
   console.error(`内容库中已存在相同 slug：${slug}`);
   process.exit(1);
 }
 fs.mkdirSync(directory, { recursive: true });
-const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+const today = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+}).format(new Date());
 const content = `---\ntitle: ${JSON.stringify(title)}\ndescription: "请用一到两句话概括文章内容，建议 30—80 字。"\npublishDate: ${today}\ncategory: "未分类"\ntags: ["待整理"]\nfeatured: false\ndraft: true\nautoNumbering: true\nshowContents: true\nshowSideToc: true\n---\n\n在这里开始写作。\n\n# 第一个主题\n\n正文内容。\n`;
 fs.writeFileSync(path.join(directory, 'index.md'), content);
 console.log(`已创建草稿：src/content/blog/${slug}/index.md`);

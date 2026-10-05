@@ -1,0 +1,12 @@
+repo: "SuiYueMengHen/GaokaoTeX"
+title: "GaokaoTeX"
+description: "中文试卷与答题卡 XeLaTeX 模板，支持双栏与多种纸张规格。"
+language: "TeX"
+stars: 0
+forks: 0
+license: "MIT"
+topics: []
+homepage: null
+featured: false
+order: 5
+syncedAt: "2026-10-05T08:55:20.677260+00:00"

@@ -1,0 +1,12 @@
+repo: "SuiYueMengHen/cntextbook"
+title: "cntextbook"
+description: "中文教材排版模板，支持定理环境、章节编号与 TikZ 封面。"
+language: "TeX"
+stars: 0
+forks: 0
+license: "MIT"
+topics: ["chinese", "education", "latex", "template", "tex"]
+homepage: null
+featured: false
+order: 6
+syncedAt: "2026-10-05T08:55:20.677523+00:00"

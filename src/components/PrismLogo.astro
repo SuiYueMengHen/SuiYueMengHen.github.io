@@ -1,8 +1,0 @@
----
-interface Props { size?: number; label?: string; }
-const { size = 40, label } = Astro.props;
----
-<img class="prism-logo" src="/prism-icon.png" width={size} height={size} alt={label || ''} aria-hidden={label ? undefined : 'true'} />
-<style>
-  .prism-logo{display:block;object-fit:cover;border-radius:1px}
-</style>

@@ -1,0 +1,222 @@
+---
+import { getCollection } from 'astro:content';
+import { siteConfig } from '../config/site';
+import { sortedProjects } from '../lib/posts';
+import ProjectCard from './ProjectCard.astro';
+import Icon from './Icon.astro';
+const projects = sortedProjects(await getCollection('projects'))
+  .filter((project) => project.data.featured)
+  .slice(0, 4);
+const { author } = siteConfig;
+---
+
+<div class="about-page shell">
+  <header class="profile-hero">
+    <img
+      class="avatar"
+      src={author.avatar}
+      alt={`${author.name} 的 GitHub 头像`}
+      width="132"
+      height="132"
+      fetchpriority="high"
+    />
+    <h1>{author.name}</h1>
+    <p>{author.tagline}</p>
+    <a
+      class="social-link"
+      href={author.github}
+      rel="me"
+      aria-label="访问 SuiYueMengHen 的 GitHub"
+    >
+      <Icon name="github" size={26} />
+    </a>
+  </header>
+  <section class="profile-section" aria-labelledby="about-title">
+    <h2 id="about-title">
+      关于我 <span>About Me</span>
+    </h2>
+    <p class="bio">{author.bio}</p>
+    <p class="muted">
+      这里是我的公开笔记与开源项目。记录学习中的思考，也分享持续打磨的工具。
+    </p>
+  </section>
+  <section class="profile-section" aria-labelledby="experience-title">
+    <h2 id="experience-title">
+      经历 <span>Experience</span>
+    </h2>
+    {author.timeline.length ? (
+      <ol class="timeline">
+        {author.timeline.map((item) => (
+          <li>
+            <time>{item.period}</time>
+            <div>
+              <h3>{item.title}</h3>
+              {item.description && <p>{item.description}</p>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <p class="muted">履历待补充。</p>
+    )}
+  </section>
+  <section class="profile-section" aria-labelledby="featured-projects-title">
+    <div class="section-title">
+      <h2 id="featured-projects-title">
+        精选项目 <span>Selected Projects</span>
+      </h2>
+      <a href="/projects/">
+        查看全部 <Icon name="arrow" size={16} />
+      </a>
+    </div>
+    <div class="project-grid">
+      {projects.map((project) => (
+        <ProjectCard project={project} compact />
+      ))}
+    </div>
+    {!projects.length && <p class="muted">精选项目正在整理中。</p>}
+  </section>
+</div>
+<style>
+  .about-page {
+    max-width: 50rem;
+  }
+  .profile-hero {
+    padding: clamp(3rem, 7vw, 5.5rem) 0 3.75rem;
+    text-align: center;
+  }
+  .avatar {
+    width: 132px;
+    height: 132px;
+    object-fit: cover;
+    border-radius: 50%;
+    margin-inline: auto;
+  }
+  h1 {
+    margin: 1.5rem 0 0.7rem;
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
+  .profile-hero p {
+    margin: 0;
+    color: var(--muted-ink);
+    font-size: 1.05rem;
+  }
+  .social-link {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    margin: 1rem auto 0;
+    border-radius: 6px;
+  }
+  .social-link:hover {
+    background: var(--surface);
+  }
+  .profile-section {
+    border-top: 1px solid var(--soft-line);
+    padding-block: 2.5rem;
+  }
+  h2 {
+    margin: 0 0 1.25rem;
+    font-size: 1.35rem;
+    font-weight: 650;
+  }
+  h2 span {
+    margin-left: 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--muted-ink);
+    letter-spacing: 0;
+  }
+  .bio {
+    margin: 0 0 0.5rem;
+  }
+  .profile-section > p:last-child {
+    margin-bottom: 0;
+  }
+  .timeline {
+    margin: 1.5rem 0 0.25rem 0.4rem;
+    padding: 0;
+    list-style: none;
+  }
+  .timeline li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: 1.5rem;
+    padding: 0 0 2rem 1.6rem;
+    border-left: 1px solid var(--line-color);
+  }
+  .timeline li:last-child {
+    padding-bottom: 0;
+    border-left-color: transparent;
+  }
+  .timeline li::before {
+    content: '';
+    position: absolute;
+    top: 0.5rem;
+    left: -4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted-ink);
+  }
+  .timeline time {
+    font-size: 0.85rem;
+    color: var(--muted-ink);
+    padding-top: 0.15rem;
+  }
+  .timeline h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 550;
+    line-height: 1.75;
+    letter-spacing: 0;
+  }
+  .timeline p {
+    margin: 0.4rem 0 0;
+    color: var(--muted-ink);
+    font-size: 0.9rem;
+  }
+  .section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .section-title a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    font-size: 0.8rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .project-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  @media (max-width: 600px) {
+    .project-grid {
+      grid-template-columns: 1fr;
+    }
+    .timeline li {
+      grid-template-columns: 1fr;
+      gap: 0.25rem;
+    }
+    h2 span {
+      display: none;
+    }
+    .profile-hero {
+      padding-block: 2.75rem 3rem;
+    }
+    .avatar {
+      width: 116px;
+      height: 116px;
+    }
+  }
+</style>

@@ -1,0 +1,112 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  collectionPosts,
+  sortedCollections,
+  visiblePosts,
+} from '../../lib/posts';
+import Icon from '../../components/Icon.astro';
+const posts = visiblePosts(await getCollection('blog'));
+const collections = sortedCollections(await getCollection('collections'));
+---
+
+<BaseLayout title="主题合集" description="按主题连续阅读个人研究与学习笔记。">
+  <header class="page-head shell">
+    <a class="back" href="/blog/">
+      ← Blog
+    </a>
+    <h1 class="display">主题合集</h1>
+    <p>将零散的思考，整理成可以连续阅读的笔记。</p>
+  </header>
+  <section class="collection-grid shell" aria-label="合集列表">
+    {collections.map((collection) => {
+      const chapters = collectionPosts(posts, collection.id);
+      return (
+        <article class="collection-card">
+          <Icon name="book" size={26} />
+          <p class="meta">
+            {chapters.length} 篇章节 ·{' '}
+            {collection.data.status === 'complete'
+              ? '已完结'
+              : collection.data.status === 'paused'
+                ? '暂停更新'
+                : '持续更新'}
+          </p>
+          <h2>
+            <a href={`/collections/${encodeURIComponent(collection.id)}/`}>
+              {collection.data.title}
+            </a>
+          </h2>
+          <p>{collection.data.description}</p>
+          <a
+            class="read"
+            href={`/collections/${encodeURIComponent(collection.id)}/`}
+          >
+            开始阅读 →
+          </a>
+        </article>
+      );
+    })}
+    {!collections.length && (
+      <div class="empty-state">
+        <h2>合集正在整理中</h2>
+        <p>新的主题笔记会陆续收录于此。</p>
+      </div>
+    )}
+  </section>
+</BaseLayout>
+<style>
+  .back {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    font-size: 0.85rem;
+    text-decoration: none;
+    color: var(--muted-ink);
+    margin-bottom: 1rem;
+  }
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    padding-bottom: 4rem;
+  }
+  .collection-card {
+    min-width: 0;
+    padding: 1.75rem;
+    border: 1px solid var(--line-color);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .meta {
+    font-size: 0.75rem;
+    color: var(--muted-ink);
+    margin-top: 1rem;
+  }
+  h2 {
+    margin: 0.5rem 0;
+    font-size: 1.4rem;
+    font-weight: 650;
+  }
+  h2 a {
+    text-decoration: none;
+  }
+  .collection-card > p:not(.meta) {
+    color: var(--muted-ink);
+    font-size: 0.9rem;
+  }
+  .read {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    font-size: 0.85rem;
+    text-decoration: none;
+    margin-top: 0.5rem;
+  }
+  @media (max-width: 640px) {
+    .collection-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

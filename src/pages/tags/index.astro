@@ -1,0 +1,45 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { visiblePosts } from '../../lib/posts';
+const posts = visiblePosts(await getCollection('blog'));
+const tags = [...new Set(posts.flatMap((post) => post.data.tags))].sort(
+  (a, b) => a.localeCompare(b, 'zh-CN'),
+);
+---
+
+<BaseLayout title="标签" description="按标签探索个人笔记。">
+  <header class="page-head shell">
+    <p class="section-kicker">Tags</p>
+    <h1 class="display">标签</h1>
+    <p>沿着关键词，寻找相关的思考。</p>
+  </header>
+  <nav class="tags shell" aria-label="标签列表">
+    {tags.map((tag) => (
+      <a class="tag" href={`/tags/${encodeURIComponent(tag)}/`}>
+        {tag}
+        <span>
+          {posts.filter((post) => post.data.tags.includes(tag)).length}
+        </span>
+      </a>
+    ))}
+    {!tags.length && <p class="muted">标签正在整理中。</p>}
+  </nav>
+</BaseLayout>
+<style>
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    padding-bottom: 4rem;
+  }
+  .tag {
+    min-height: 48px;
+    padding: 0.5rem 1rem;
+  }
+  span {
+    margin-left: 0.75rem;
+    color: var(--muted-ink);
+    font-size: 0.75rem;
+  }
+</style>

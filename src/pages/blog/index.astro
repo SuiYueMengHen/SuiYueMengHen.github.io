@@ -1,16 +1,340 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import LibraryEmpty from '../../components/LibraryEmpty.astro';
-import { collectionPosts, contentStats, postSlug, sortedCollections, visiblePosts } from '../../lib/posts';
-const posts=visiblePosts(await getCollection('blog'));const collections=sortedCollections(await getCollection('collections'));
+import PostCard from '../../components/PostCard.astro';
+import Icon from '../../components/Icon.astro';
+import { sortedCollections, visiblePosts } from '../../lib/posts';
+const posts = visiblePosts(await getCollection('blog'));
+const pinned = posts.filter((post) => post.data.featured);
+const tags = [...new Set(posts.flatMap((post) => post.data.tags))];
+const years = [
+  ...new Set(posts.map((post) => post.data.publishDate.getUTCFullYear())),
+];
+const collections = sortedCollections(await getCollection('collections'));
+const searchText = (post: (typeof posts)[number]) =>
+  [
+    post.data.title,
+    post.data.description,
+    post.data.category,
+    post.data.collection,
+    ...post.data.tags,
+  ]
+    .join(' ')
+    .toLocaleLowerCase();
 ---
-<BaseLayout title="合集" description="棱镜笔记的主题合集书架。">
-  <header class="library-head shell"><div><p class="section-kicker">Library / {String(collections.length).padStart(2,'0')}</p><h1 class="display">合集书架</h1></div><div class="head-note"><span>{posts.filter(post=>post.data.collection).length} 篇章节</span><p>文章按主题组成可连续阅读的书卷。顺序由作者明确编排，与发布日期无关。</p></div></header>
-  <main class="library shell">{collections.length?collections.map((collection,index)=>{const chapters=collectionPosts(posts,collection.id);return <article class="book"><aside><span>{collection.data.volume||`卷 ${String(index+1).padStart(2,'0')}`}</span><i aria-hidden="true"></i></aside><div><p class="status">{collection.data.status==='complete'?'已完结':'编写中'} · {chapters.length} 章</p><h2><a href={`/collections/${collection.id}/`}>{collection.data.title}</a></h2>{collection.data.subtitle&&<p class="subtitle">{collection.data.subtitle}</p>}<p>{collection.data.description}</p><ol>{chapters.map(post=>{const stats=contentStats(post.body);return <li><a href={`/blog/${postSlug(post)}/`}><span>第 {post.data.collectionOrder} 章</span><strong>{post.data.title}</strong><i></i><b>{stats.words.toLocaleString('zh-CN')} 字 · 约 {stats.minutes} 分钟</b></a></li>})}</ol></div></article>}):<LibraryEmpty index="Library / 00" title="书架尚待开卷" description="新的主题合集会在这里成为一本可连续阅读的书。当前内容库已清空，等待第一章落笔。" />}</main>
+
+<BaseLayout
+  title="Blog"
+  description="思考、研究与构建的记录。按时间、标签和合集浏览个人笔记。"
+>
+  <header class="page-head shell">
+    <h1 class="display">Blog</h1>
+    <p>思考、研究与构建的记录。</p>
+  </header>
+  <div class="blog-page shell">
+    <div class="search-row">
+      <label for="blog-search" class="sr-only">
+        搜索文章标题、摘要或标签
+      </label>
+      <Icon name="search" />
+      <input
+        id="blog-search"
+        type="search"
+        placeholder="搜索文章…"
+        autocomplete="off"
+      />
+      <a href="/search/" id="full-search">
+        全文搜索 →
+      </a>
+    </div>
+    <div class="filter-bar" role="group" aria-label="按文章标签筛选">
+      <button type="button" data-blog-filter="" aria-pressed="true">
+        全部
+      </button>
+      {tags.map((tag) => (
+        <button type="button" data-blog-filter={tag} aria-pressed="false">
+          {tag}
+        </button>
+      ))}
+    </div>
+    <p id="blog-status" class="sr-only" role="status" aria-live="polite">
+      {posts.length} 篇文章
+    </p>
+    {pinned.length > 0 && (
+      <section
+        class="pinned-section"
+        data-filter-section
+        aria-labelledby="pinned-title"
+      >
+        <h2 id="pinned-title">
+          <Icon name="pin" />
+          置顶文章
+        </h2>
+        <div class="pinned-grid">
+          {pinned.map((post) => (
+            <div
+              data-blog-post
+              data-search={searchText(post)}
+              data-tags={JSON.stringify(post.data.tags)}
+            >
+              <PostCard post={post} featured />
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+    <section class="chronology" aria-labelledby="chronology-title">
+      <div class="section-title">
+        <h2 id="chronology-title">按时间浏览</h2>
+        <a href="/archive/">完整归档 →</a>
+      </div>
+      {years.map((year) => (
+        <div class="year-group" data-filter-section>
+          <h3 class="year">
+            {year}
+            <span></span>
+          </h3>
+          {posts
+            .filter((post) => post.data.publishDate.getUTCFullYear() === year)
+            .map((post) => (
+              <div
+                data-blog-post
+                data-chronological
+                data-search={searchText(post)}
+                data-tags={JSON.stringify(post.data.tags)}
+              >
+                <PostCard post={post} />
+              </div>
+            ))}
+        </div>
+      ))}
+      <div class="empty-state" id="blog-empty" hidden={posts.length > 0}>
+        <h3>{posts.length ? '没有匹配的文章' : '第一篇笔记，正在路上'}</h3>
+        <p>
+          {posts.length
+            ? '试试其他关键词，或清除筛选条件。'
+            : '新的思考会陆续记录在这里。'}
+        </p>
+        <button
+          class="button"
+          type="button"
+          id="clear-blog-filters"
+          hidden={!posts.length}
+        >
+          清除筛选
+        </button>
+      </div>
+    </section>
+    {collections.length > 0 && (
+      <section class="collections-section" aria-labelledby="collections-title">
+        <div class="section-title">
+          <h2 id="collections-title">主题合集</h2>
+          <a href="/collections/">全部合集 →</a>
+        </div>
+        <div class="collection-links">
+          {collections.map((collection) => (
+            <a href={`/collections/${encodeURIComponent(collection.id)}/`}>
+              <Icon name="book" size={18} />
+              <span>{collection.data.title}</span>
+              <Icon name="arrow" size={16} />
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+    <nav class="browse-links" aria-label="其他文章浏览方式">
+      <a href="/categories/">按分类浏览</a>
+      <a href="/tags/">按标签浏览</a>
+      <a href="/rss.xml">订阅 RSS ↗</a>
+    </nav>
+  </div>
 </BaseLayout>
+<script>
+  const search = document.querySelector<HTMLInputElement>('#blog-search');
+  const filters = [
+    ...document.querySelectorAll<HTMLButtonElement>('[data-blog-filter]'),
+  ];
+  const items = [...document.querySelectorAll<HTMLElement>('[data-blog-post]')];
+  let selected = '';
+  function filterPosts() {
+    const query = (search?.value || '').trim().toLocaleLowerCase();
+    items.forEach((item) => {
+      const tags = JSON.parse(item.dataset.tags || '[]') as string[];
+      item.hidden = !(
+        item.dataset.search?.includes(query) &&
+        (!selected || tags.includes(selected))
+      );
+    });
+    document
+      .querySelectorAll<HTMLElement>('[data-filter-section]')
+      .forEach((section) => {
+        section.hidden = ![
+          ...section.querySelectorAll<HTMLElement>('[data-blog-post]'),
+        ].some((item) => !item.hidden);
+      });
+    const count = items.filter(
+      (item) => item.hasAttribute('data-chronological') && !item.hidden,
+    ).length;
+    const empty = document.querySelector<HTMLElement>('#blog-empty');
+    if (empty) empty.hidden = count > 0;
+    const status = document.querySelector('#blog-status');
+    if (status) status.textContent = `${count} 篇文章`;
+    document
+      .querySelector('#full-search')
+      ?.setAttribute(
+        'href',
+        query ? `/search/?q=${encodeURIComponent(query)}` : '/search/',
+      );
+  }
+  search?.addEventListener('input', filterPosts);
+  filters.forEach((button) =>
+    button.addEventListener('click', () => {
+      selected = button.dataset.blogFilter || '';
+      filters.forEach((filter) =>
+        filter.setAttribute('aria-pressed', String(filter === button)),
+      );
+      filterPosts();
+    }),
+  );
+  document
+    .querySelector('#clear-blog-filters')
+    ?.addEventListener('click', () => {
+      if (search) search.value = '';
+      selected = '';
+      filters.forEach((button) =>
+        button.setAttribute('aria-pressed', String(!button.dataset.blogFilter)),
+      );
+      filterPosts();
+      search?.focus();
+    });
+</script>
 <style>
-  .library-head{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(17rem,.7fr);gap:3rem;align-items:end;padding:clamp(4.5rem,10vw,8rem) 0 clamp(2.5rem,5vw,4rem);border-bottom:1px solid var(--ink)}.library-head h1{margin:.35rem 0 0}.head-note{padding-left:1.5rem;border-left:1px solid var(--line-color)}.head-note span{font:500 .68rem var(--font-sans);letter-spacing:.1em;text-transform:uppercase}.head-note p{margin:.75rem 0 0;color:var(--muted-ink)}
-  .library{display:grid;gap:2rem;padding-block:2rem 7rem}.book{display:grid;grid-template-columns:7rem 1fr;border:1px solid var(--line-color);background:var(--surface)}.book>aside{display:flex;flex-direction:column;justify-content:space-between;padding:1.5rem;border-right:1px solid var(--line-color);background:color-mix(in srgb,var(--accent) 7%,var(--paper));writing-mode:vertical-rl}.book>aside span{font:500 .7rem var(--font-sans);letter-spacing:.12em}.book>aside i{height:5rem;border-left:1px solid var(--accent);transform:rotate(20deg)}.book>div{padding:clamp(1.5rem,5vw,3rem)}.status{margin:0;font:500 .7rem var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted-ink)}.book h2{margin:.5rem 0;font-size:clamp(2rem,5vw,3.2rem);font-weight:500}.book h2 a{text-decoration:none}.subtitle{font-style:italic}.book ol{padding:0;list-style:none;border-top:1px solid var(--line-color)}.book li{border-bottom:1px solid var(--soft-line)}.book li a{display:flex;align-items:baseline;gap:.75rem;min-height:52px;padding:.7rem 0;text-decoration:none}.book li span{font-size:.78rem;color:var(--muted-ink)}.book li strong{font-weight:500}.book li i{flex:1;border-bottom:1px dotted var(--line-color)}.book li b{font:400 .7rem var(--font-sans);color:var(--muted-ink);white-space:nowrap}
-  @media(max-width:720px){.library-head{grid-template-columns:1fr;gap:1.5rem}.head-note{padding-left:0;border-left:0}.book{grid-template-columns:3rem 1fr}.book>aside{padding:.8rem}.book li a{display:grid;grid-template-columns:auto 1fr}.book li i{display:none}.book li b{grid-column:2}}
+  .blog-page {
+    padding-bottom: 3rem;
+  }
+  .search-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.3rem 1rem;
+    border: 1px solid var(--line-color);
+    border-radius: var(--radius);
+    color: var(--muted-ink);
+  }
+  .search-row:focus-within {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .search-row input {
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+    color: var(--ink);
+    background: transparent;
+    border: 0;
+    outline: none;
+    font-size: 1rem;
+  }
+  .search-row a {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .search-row > :global(svg) {
+    flex-shrink: 0;
+  }
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 1.3rem;
+    font-size: 1.35rem;
+    font-weight: 650;
+  }
+  .pinned-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+  .pinned-grid > div {
+    display: grid;
+    min-width: 0;
+  }
+  .pinned-section {
+    margin-bottom: 3.5rem;
+  }
+  .section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .section-title > a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8rem;
+    text-decoration: none;
+    color: var(--muted-ink);
+  }
+  .year {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.5rem 0 0;
+    font-size: 1.1rem;
+    font-weight: 650;
+  }
+  .year span {
+    flex: 1;
+    border-bottom: 1px solid var(--line-color);
+  }
+  .collections-section {
+    margin-top: 3rem;
+  }
+  .collection-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+  }
+  .collection-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 48px;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid var(--line-color);
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85rem;
+  }
+  .browse-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 2.5rem;
+    font-size: 0.8rem;
+    color: var(--muted-ink);
+  }
+  .browse-links a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+  @media (max-width: 640px) {
+    .pinned-grid {
+      grid-template-columns: 1fr;
+    }
+    .search-row {
+      gap: 0.5rem;
+      padding-inline: 0.75rem;
+    }
+    .search-row a {
+      font-size: 0.7rem;
+    }
+  }
 </style>

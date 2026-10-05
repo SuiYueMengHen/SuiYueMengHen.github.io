@@ -1,21 +1,184 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 import { projectPreviewVersion } from '../lib/preview-version';
-interface Props { project: CollectionEntry<'projects'>; compact?: boolean }
+import Icon from './Icon.astro';
+interface Props {
+  project: CollectionEntry<'projects'>;
+  compact?: boolean;
+}
 const { project, compact = false } = Astro.props;
 const d = project.data;
 const repoUrl = `https://github.com/${d.repo}`;
+const icon =
+  d.language === 'TeX' ? 'book' : d.repo.includes('EMField') ? 'chart' : 'code';
 ---
-<article class:list={['project-card', { compact }]} data-project-repo={d.repo} data-content-version={projectPreviewVersion(d)}>
-  {d.cover && <img src={d.cover} alt={d.coverAlt || `${d.title} 项目封面`} loading="lazy" />}
+
+<article
+  class:list={['project-card', { compact }]}
+  data-project-repo={d.repo}
+  data-content-version={projectPreviewVersion(d)}
+>
+  {!compact && d.cover && (
+    <img
+      class="project-cover"
+      src={d.cover}
+      alt={d.coverAlt || `${d.title} 项目封面`}
+      loading="lazy"
+      width="640"
+      height="320"
+    />
+  )}
   <div class="project-body">
-    <p class="repo-path"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5l2 2h7v14H5z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>{d.repo}</p>
-    <h3><a href={repoUrl}>{d.title}</a></h3><p class="description">{d.description || '该项目暂未填写摘要。'}</p>
-    <dl><div><dt>语言</dt><dd>{d.language || '—'}</dd></div><div><dt>Stars</dt><dd>{d.stars}</dd></div><div><dt>Forks</dt><dd>{d.forks}</dd></div><div><dt>许可</dt><dd>{d.license || '—'}</dd></div></dl>
-    {d.topics.length > 0 && <ul class="topics" aria-label="项目主题">{d.topics.map((topic) => <li>{topic}</li>)}</ul>}
-    <footer><a href={repoUrl}>查看仓库 ↗</a>{d.homepage && <a href={d.homepage}>访问项目 ↗</a>}</footer>
+    <div class="project-heading">
+      <span class="project-icon">
+        <Icon name={icon} size={26} />
+      </span>
+      <h3>
+        <a href={repoUrl}>{d.title}</a>
+      </h3>
+    </div>
+    <p class="description">
+      {d.description || '一个正在探索与构建的开源项目。'}
+    </p>
+    <div class="project-footer">
+      <span class="language">{d.language || 'Project'}</span>
+      <div>
+        <a
+          class="repo-link"
+          href={repoUrl}
+          aria-label={`查看 ${d.title} 的 GitHub 仓库`}
+        >
+          <Icon name="github" size={20} />
+          <Icon name="arrow" size={18} />
+        </a>
+        {!compact && d.homepage && (
+          <a class="demo-link" href={d.homepage}>
+            访问项目 ↗
+          </a>
+        )}
+      </div>
+    </div>
+    {!compact && d.topics.length > 0 && (
+      <ul class="topics" aria-label="项目主题">
+        {d.topics.slice(0, 4).map((topic) => (
+          <li>{topic}</li>
+        ))}
+      </ul>
+    )}
   </div>
 </article>
 <style>
-  .project-card{position:relative;display:grid;grid-template-columns:minmax(0,1fr);border:1px solid var(--line-color);background:var(--surface);overflow:hidden}.project-card::after{content:'';position:absolute;right:-2rem;top:1.1rem;width:8rem;border-top:1px solid var(--accent);transform:rotate(-28deg);pointer-events:none}.project-card>img{width:100%;aspect-ratio:16/8;object-fit:cover;border-bottom:1px solid var(--soft-line)}.project-body{padding:clamp(1.25rem,3vw,2rem)}.repo-path{display:flex;align-items:center;gap:.45rem;margin:0;font:500 .72rem var(--font-mono);color:var(--muted-ink)}h3{counter-increment:none!important;margin:.75rem 0 .45rem;font-size:1.55rem;font-weight:500}h3::before{content:none!important}h3 a{text-decoration:none}.description{margin:0;color:var(--muted-ink)}dl{display:grid;grid-template-columns:repeat(4,1fr);margin:1.4rem 0;border-block:1px solid var(--soft-line)}dl div{padding:.65rem;border-right:1px solid var(--soft-line)}dl div:last-child{border:0}dt{font:500 .64rem var(--font-sans);text-transform:uppercase;color:var(--muted-ink)}dd{margin:.15rem 0 0;font-variant-numeric:tabular-nums}.topics{display:flex;flex-wrap:wrap;gap:.4rem;margin:0;padding:0;list-style:none}.topics li{padding:.15rem .45rem;border:1px solid var(--soft-line);font:500 .68rem var(--font-sans)}footer{display:flex;gap:1.25rem;margin-top:1.35rem;font:500 .78rem var(--font-sans)}.compact dl{grid-template-columns:repeat(2,1fr)}@media(max-width:540px){dl{grid-template-columns:repeat(2,1fr)}dl div:nth-child(2){border-right:0}}
+  .project-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--line-color);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+    transition: border-color 0.18s ease;
+  }
+  .project-card:hover {
+    border-color: var(--muted-ink);
+  }
+  .project-cover {
+    width: 100%;
+    aspect-ratio: 2;
+    object-fit: cover;
+    border-bottom: 1px solid var(--soft-line);
+  }
+  .project-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 1.5rem;
+  }
+  .project-heading {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .project-icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--muted-ink);
+  }
+  h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+    counter-increment: none !important;
+  }
+  h3::before {
+    content: none !important;
+  }
+  h3 a {
+    text-decoration: none;
+  }
+  .description {
+    margin: 1rem 0 1.25rem;
+    color: var(--muted-ink);
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+  .project-footer {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+  .project-footer > div {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+  }
+  .language {
+    padding: 0.2rem 0.6rem;
+    border-radius: 5px;
+    background: var(--soft-line);
+    font-size: 0.75rem;
+  }
+  .repo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 44px;
+    min-height: 44px;
+    text-decoration: none;
+  }
+  .demo-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: 0.75rem;
+    text-decoration: none;
+  }
+  .topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.8rem;
+    margin: 0.8rem 0 0;
+    padding: 0.65rem 0 0;
+    list-style: none;
+    border-top: 1px solid var(--soft-line);
+    font-size: 0.7rem;
+    color: var(--muted-ink);
+  }
+  .compact .project-body {
+    padding: 1.25rem;
+  }
+  .compact .project-icon {
+    display: none;
+  }
+  .compact .description {
+    margin: 0.6rem 0 0.9rem;
+  }
 </style>

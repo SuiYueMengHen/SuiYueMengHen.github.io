@@ -1,12 +1,14 @@
 ---
 title: 函数用无穷级数和无穷乘积展开
-description: 请用一到两句话概括文章内容，建议 30—80 字。
+description: 从生成函数出发，整理伯努利与欧勒多项式、无穷级数和无穷乘积的展开。
 publishDate: '2026-08-03'
 category: 未分类
 tags:
 - 待整理
-featured: false
+featured: true
 draft: false
+cover: ./cover.svg
+coverAlt: 多组波形叠加而成的简约数学曲线
 autoNumbering: true
 showContents: true
 showSideToc: true

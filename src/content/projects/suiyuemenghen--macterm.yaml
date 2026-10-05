@@ -1,6 +1,6 @@
 repo: SuiYueMengHen/macterm
 title: macterm
-description: A Rust terminal-related project for macOS workflows.
+description: "面向 macOS 工作流的 Rust 终端工具。"
 language: Rust
 stars: 1
 forks: 0
@@ -11,5 +11,5 @@ topics:
 - macos
 homepage: null
 featured: false
-order: 1
+order: 7
 syncedAt: '2026-08-04T01:16:52.032736+00:00'

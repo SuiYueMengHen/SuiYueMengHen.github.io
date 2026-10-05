@@ -1,7 +1,134 @@
 ---
-import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import { collectionPosts, contentStats, postSlug, sortedCollections, visiblePosts } from '../../lib/posts';import { collectionPreviewVersion } from '../../lib/preview-version';
-export async function getStaticPaths(){const items=sortedCollections(await getCollection('collections'));const posts=visiblePosts(await getCollection('blog'));return items.map(collection=>({params:{slug:collection.id},props:{collection,chapters:collectionPosts(posts,collection.id)}}))}
-const{collection,chapters}=Astro.props;
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  collectionPosts,
+  contentStats,
+  postSlug,
+  sortedCollections,
+  visiblePosts,
+} from '../../lib/posts';
+import { collectionPreviewVersion } from '../../lib/preview-version';
+export async function getStaticPaths() {
+  const items = sortedCollections(await getCollection('collections'));
+  const posts = visiblePosts(await getCollection('blog'));
+  return items.map((collection) => ({
+    params: { slug: collection.id },
+    props: { collection, chapters: collectionPosts(posts, collection.id) },
+  }));
+}
+const { collection, chapters } = Astro.props;
 ---
-<BaseLayout title={collection.data.title} description={collection.data.description}><div data-preview-kind="collection" data-preview-id={collection.id} data-content-version={collectionPreviewVersion(collection.data)}><header class="collection-head shell"><p>{collection.data.volume||'Prism Notes Collection'}</p><h1>{collection.data.title}</h1>{collection.data.subtitle&&<em>{collection.data.subtitle}</em>}<span>{collection.data.description}</span></header><section class="collection-toc shell"><ol>{chapters.map((post:any)=>{const stats=contentStats(post.body);return <li><a href={`/blog/${postSlug(post)}/`}><small>第 {post.data.collectionOrder} 章</small><strong>{post.data.title}</strong><i></i><b>{stats.words.toLocaleString('zh-CN')} 字 · 约 {stats.minutes} 分钟</b></a><p>{post.data.description}</p></li>})}</ol></section></div></BaseLayout>
-<style>.collection-head{max-width:var(--measure);padding:clamp(5rem,12vw,9rem) 0 3rem;text-align:center;border-bottom:3px double var(--ink)}.collection-head p{font:500 .7rem var(--font-sans);letter-spacing:.15em;text-transform:uppercase}.collection-head h1{margin:1rem 0 .5rem;font-size:clamp(3rem,9vw,6rem);font-weight:500;line-height:1}.collection-head em{display:block;font-size:1.25rem}.collection-head span{display:block;max-width:36rem;margin:2rem auto 0;color:var(--muted-ink)}.collection-toc{max-width:var(--measure);padding:2rem 0 7rem}.collection-toc ol{padding:0;list-style:none}.collection-toc li{padding:1rem 0;border-bottom:1px solid var(--soft-line)}.collection-toc a{display:flex;gap:.75rem;align-items:baseline;text-decoration:none}.collection-toc small{color:var(--muted-ink)}.collection-toc strong{font-size:1.2rem;font-weight:500}.collection-toc i{flex:1;border-bottom:1px dotted var(--line-color)}.collection-toc b{font:500 .72rem var(--font-sans)}.collection-toc p{margin:.35rem 0 0 4.8rem;color:var(--muted-ink)}@media(max-width:600px){.collection-toc a{display:grid;grid-template-columns:auto 1fr}.collection-toc i{display:none}.collection-toc p{margin-left:0}}</style>
+
+<BaseLayout
+  title={collection.data.title}
+  description={collection.data.description}
+>
+  <div
+    data-preview-kind="collection"
+    data-preview-id={collection.id}
+    data-content-version={collectionPreviewVersion(collection.data)}
+  >
+    <header class="page-head shell collection-head">
+      <a href="/collections/" class="back">
+        ← 主题合集
+      </a>
+      <p class="section-kicker">{collection.data.volume || 'Collection'}</p>
+      <h1 class="display">{collection.data.title}</h1>
+      {collection.data.subtitle && <p>{collection.data.subtitle}</p>}
+      <p>{collection.data.description}</p>
+    </header>
+    <section class="collection-toc shell" aria-label="合集章节">
+      <ol>
+        {chapters.map((post: any) => (
+          <li>
+            <a href={`/blog/${postSlug(post)}/`}>
+              <small>第 {post.data.collectionOrder} 章</small>
+              <div>
+                <h2>{post.data.title}</h2>
+                <p>{post.data.description}</p>
+              </div>
+              <span>{contentStats(post.body).minutes} 分钟 →</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+      {!chapters.length && (
+        <div class="empty-state">
+          <h2>章节正在整理中</h2>
+          <p>新的笔记将在这里更新。</p>
+        </div>
+      )}
+    </section>
+  </div>
+</BaseLayout>
+<style>
+  .back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    color: var(--muted-ink);
+    margin-bottom: 1rem;
+  }
+  .collection-head {
+    max-width: var(--measure);
+  }
+  .collection-toc {
+    max-width: var(--measure);
+    padding-bottom: 4rem;
+  }
+  ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    border-top: 1px solid var(--soft-line);
+  }
+  li:last-child {
+    border-bottom: 1px solid var(--soft-line);
+  }
+  li a {
+    display: flex;
+    align-items: baseline;
+    gap: 1.25rem;
+    padding: 1.5rem 0;
+    text-decoration: none;
+  }
+  small,
+  span {
+    flex-shrink: 0;
+    color: var(--muted-ink);
+    font-size: 0.8rem;
+  }
+  li a > div {
+    flex: 1;
+    min-width: 0;
+  }
+  h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+  li p {
+    margin: 0.5rem 0 0;
+    font-size: 0.9rem;
+    color: var(--muted-ink);
+  }
+  @media (max-width: 640px) {
+    li a {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    li a > div {
+      flex-basis: 100%;
+      order: 1;
+    }
+    span {
+      margin-left: auto;
+    }
+  }
+</style>
