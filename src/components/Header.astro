@@ -1,16 +1,12 @@
 ---
 import { siteConfig } from '../config/site';
 import Icon from './Icon.astro';
-interface Props {
-  article?: boolean;
-}
-const { article = false } = Astro.props;
 const path = Astro.url.pathname;
 const active = (href: string) =>
   href === '/'
     ? path === '/' || path.startsWith('/about')
     : href === '/blog/'
-      ? /^\/(blog|collections|categories|tags|archive|search)(\/|$)/.test(path)
+      ? /^\/(blog|tags|archive|search)(\/|$)/.test(path)
       : path.startsWith(href);
 ---
 
@@ -30,18 +26,6 @@ const active = (href: string) =>
       ))}
     </nav>
     <div class="header-actions">
-      {article && (
-        <button
-          id="settings-toggle"
-          class="icon-button"
-          type="button"
-          aria-label="打开阅读设置"
-          aria-controls="reading-settings"
-          title="阅读设置"
-        >
-          <Icon name="settings" />
-        </button>
-      )}
       <button
         id="theme-toggle"
         class="icon-button"

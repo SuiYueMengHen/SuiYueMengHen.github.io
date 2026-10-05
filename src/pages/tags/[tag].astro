@@ -24,8 +24,8 @@ const { tag, posts } = Astro.props;
   </header>
   <section class="post-list">
     <div class="shell list">
-      {posts.map((post: any, i: number) => (
-        <PostCard post={post} index={i} />
+      {posts.map((post: any) => (
+        <PostCard post={post} />
       ))}
       {!posts.length && (
         <div class="empty-state">

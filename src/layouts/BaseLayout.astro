@@ -1,7 +1,6 @@
 ---
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import ReadingSettings from '../components/ReadingSettings.astro';
 import { siteConfig } from '../config/site';
 import '../styles/global.css';
 
@@ -59,10 +58,7 @@ const jsonLd =
 ---
 
 <!doctype html>
-<html
-  lang="zh-CN"
-  style={`--reader-font-size:${siteConfig.reading.fontSize}px;--reader-line-height:${siteConfig.reading.lineHeight};--measure:${siteConfig.reading.contentWidth}rem`}
->
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -120,17 +116,6 @@ const jsonLd =
               : 'light';
         document.querySelector('meta[name="theme-color"]').content =
           root.dataset.theme === 'dark' ? '#1d1e20' : '#ffffff';
-        try {
-          const s = JSON.parse(
-            localStorage.getItem('prism-reader-settings') || '{}',
-          );
-          if (s.fontSize >= 15 && s.fontSize <= 22)
-            root.style.setProperty('--reader-font-size', `${s.fontSize}px`);
-          if (s.lineHeight >= 1.5 && s.lineHeight <= 2.1)
-            root.style.setProperty('--reader-line-height', s.lineHeight);
-          if (s.contentWidth >= 38 && s.contentWidth <= 52)
-            root.style.setProperty('--measure', `${s.contentWidth}rem`);
-        } catch {}
       })();
     </script>
     <script
@@ -144,8 +129,7 @@ const jsonLd =
     <a class="skip-link" href="#main-content">
       跳到正文
     </a>
-    <Header article={type === 'article'} />
-    {type === 'article' && <ReadingSettings />}
+    <Header />
     <main id="main-content">
       <slot />
     </main>

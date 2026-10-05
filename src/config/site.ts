@@ -31,12 +31,6 @@ export const siteConfig = {
     { label: 'Blog', href: '/blog/' },
     { label: 'Projects', href: '/projects/' },
   ],
-  postsPerPage: 9,
-  reading: {
-    fontSize: 17,
-    lineHeight: 1.85,
-    contentWidth: 46,
-  },
   comments: {
     enabled: true,
     repo: 'SuiYueMengHen/SuiYueMengHen.github.io',
