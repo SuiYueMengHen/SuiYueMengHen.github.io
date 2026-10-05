@@ -121,17 +121,18 @@
 }
 .prose table {
   display: block;
+  width: max-content;
   max-width: 100%;
   overflow-x: auto;
   border-collapse: collapse;
-  margin: 1.5rem 0;
+  margin: 1.5rem auto;
   font-size: 0.9rem;
 }
 .prose th,
 .prose td {
   padding: 0.65rem 1rem;
   border: 1px solid var(--line-color);
-  text-align: left;
+  text-align: center;
 }
 .prose img {
   border-radius: 4px;

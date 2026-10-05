@@ -15,7 +15,7 @@ const href = `/blog/${postSlug(post)}/`;
       <Image
         src={post.data.cover}
         alt={post.data.coverAlt || ''}
-        widths={[640, 960]}
+        widths={[480, 720]}
         sizes="(max-width: 760px) 100vw, 720px"
         loading="lazy"
       />
@@ -37,18 +37,21 @@ const href = `/blog/${postSlug(post)}/`;
 </article>
 <style>
   .post-card {
-    padding: 2rem 0;
-    border-bottom: 1px solid var(--soft-line);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid var(--line-color);
+    border-radius: 8px;
+    background: var(--surface);
   }
   .post-cover {
     display: block;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
     border-radius: 6px;
     overflow: hidden;
   }
   .post-cover :global(img) {
     width: 100%;
-    aspect-ratio: 16 / 7;
+    height: 140px;
     object-fit: cover;
   }
   h2 {
@@ -74,5 +77,16 @@ const href = `/blog/${postSlug(post)}/`;
   }
   .post-meta a {
     text-decoration: none;
+  }
+  @media (max-width: 760px) {
+    .post-card {
+      padding: 1rem;
+    }
+    .post-cover :global(img) {
+      height: 112px;
+    }
+    h2 {
+      font-size: 1.25rem;
+    }
   }
 </style>
