@@ -1,10 +1,180 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
 ---
-<BaseLayout title="搜索" description="搜索棱镜笔记的全部文章。"><header class="page-head shell"><p class="section-kicker">Full-text index</p><h1 class="display">搜索</h1><p>输入标题、正文、标签或分类。全文索引仅在当前浏览器中查询。</p></header><section class="search-section"><div class="shell search-box"><label for="search-input">查询词</label><div class="input-row"><input id="search-input" type="search" placeholder="例如：设计、写作、技术" autocomplete="off" /><button id="search-button" type="button">检索</button></div><p id="search-status" role="status" aria-live="polite">输入关键词开始搜索</p><div id="search-results"></div></div></section></BaseLayout>
+
+<BaseLayout title="搜索" description="搜索全部笔记的标题、正文与标签。">
+  <header class="page-head shell">
+    <p class="section-kicker">Search</p>
+    <h1 class="display">搜索</h1>
+    <p>在笔记里，寻找一个问题或一段思考。</p>
+  </header>
+  <section class="search-section shell">
+    <form id="search-form" role="search">
+      <label for="search-input" class="sr-only">
+        全文搜索关键词
+      </label>
+      <div class="input-row">
+        <Icon name="search" />
+        <input
+          id="search-input"
+          type="search"
+          placeholder="输入关键词…"
+          autocomplete="off"
+        />
+        <button class="button" type="submit">
+          搜索
+        </button>
+      </div>
+    </form>
+    <p id="search-status" role="status" aria-live="polite">
+      输入关键词开始搜索
+    </p>
+    <div id="search-results" aria-busy="false"></div>
+  </section>
+</BaseLayout>
 <script>
-  const input=document.querySelector<HTMLInputElement>('#search-input');const button=document.querySelector<HTMLButtonElement>('#search-button');const results=document.querySelector<HTMLElement>('#search-results');const status=document.querySelector<HTMLElement>('#search-status');let pagefind:any;
-  async function search(query:string){if(!results||!status)return;if(!query.trim()){results.innerHTML='';status.textContent='输入关键词开始搜索';return}try{const loadModule=new Function('path','return import(path)') as(path:string)=>Promise<any>;pagefind||=await loadModule('/pagefind/pagefind.js');const response=await pagefind.search(query);const items=await Promise.all(response.results.slice(0,20).map((item:any)=>item.data()));status.textContent=`找到 ${response.results.length} 条结果`;results.innerHTML=items.map((item:any,index:number)=>`<article><span>${String(index+1).padStart(2,'0')}.</span><a href="${item.url}"><small>${item.meta.category||'文章'}</small><h2>${item.meta.title}</h2><p>${item.excerpt}</p></a></article>`).join('')}catch{status.textContent='开发模式下暂不生成搜索索引；运行 npm run build 后即可使用。'}}
-  let timer:number;input?.addEventListener('input',()=>{clearTimeout(timer);timer=window.setTimeout(()=>search(input.value),180)});button?.addEventListener('click',()=>search(input?.value||''));
+  const input = document.querySelector<HTMLInputElement>('#search-input');
+  const results = document.querySelector<HTMLElement>('#search-results');
+  const status = document.querySelector<HTMLElement>('#search-status');
+  let pagefind: any;
+  let latestRequest = 0;
+  async function search(query: string) {
+    if (!results || !status) return;
+    const request = ++latestRequest;
+    const text = query.trim();
+    if (!text) {
+      results.replaceChildren();
+      status.textContent = '输入关键词开始搜索';
+      results.setAttribute('aria-busy', 'false');
+      return;
+    }
+    status.textContent = '正在搜索…';
+    results.setAttribute('aria-busy', 'true');
+    try {
+      // Keep the search engine off every other page and load it only on demand.
+      const loadModule = new Function('path', 'return import(path)') as (
+        path: string,
+      ) => Promise<any>;
+      pagefind ||= await loadModule('/pagefind/pagefind.js');
+      const response = await pagefind.search(text);
+      const items = await Promise.all(
+        response.results.slice(0, 20).map((item: any) => item.data()),
+      );
+      if (request !== latestRequest) return;
+      const fragment = document.createDocumentFragment();
+      items.forEach((item: any) => {
+        const url = new URL(item.url, location.origin);
+        if (url.origin !== location.origin) return;
+        const article = document.createElement('article');
+        const link = document.createElement('a');
+        link.href = url.pathname;
+        const heading = document.createElement('h2');
+        heading.textContent = item.meta.title || '文章';
+        const excerpt = document.createElement('p');
+        // Pagefind marks are read as text so article content cannot insert active HTML.
+        excerpt.textContent = new DOMParser().parseFromString(
+          item.excerpt,
+          'text/html',
+        ).body.textContent;
+        link.append(heading, excerpt);
+        article.append(link);
+        fragment.append(article);
+      });
+      results.replaceChildren(fragment);
+      status.textContent = response.results.length
+        ? `找到 ${response.results.length} 篇文章${response.results.length > 20 ? '，显示前 20 篇' : ''}`
+        : '没有找到相关笔记，试试其他关键词。';
+    } catch {
+      if (request !== latestRequest) return;
+      results.replaceChildren();
+      status.textContent = '搜索暂时不可用，请稍后重试，或按时间浏览文章。';
+      const link = document.createElement('a');
+      link.href = '/blog/';
+      link.textContent = '浏览全部文章 →';
+      results.append(link);
+    } finally {
+      if (request === latestRequest) results.setAttribute('aria-busy', 'false');
+    }
+  }
+  let timer: number;
+  input?.addEventListener('input', () => {
+    clearTimeout(timer);
+    latestRequest++;
+    timer = window.setTimeout(() => search(input.value), 180);
+  });
+  document
+    .querySelector('#search-form')
+    ?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      clearTimeout(timer);
+      search(input?.value || '');
+    });
+  const initial = new URLSearchParams(location.search).get('q');
+  if (initial && input) {
+    input.value = initial;
+    search(initial);
+  }
 </script>
-<style>.search-section{padding-bottom:8rem}.search-box{max-width:var(--measure)}.search-box label{display:block;margin-bottom:.5rem;font-weight:500}.input-row{display:grid;grid-template-columns:1fr auto}.input-row input{width:100%;min-height:52px;padding:.65rem .85rem;border:1px solid var(--ink);border-radius:0;background:var(--surface);color:var(--ink);font-size:1rem}.input-row button{min-width:84px;border:1px solid var(--ink);border-left:0;background:var(--ink);color:var(--paper);cursor:pointer}#search-status{font:500 .75rem var(--font-sans);color:var(--muted-ink)}#search-results{border-top:1px solid var(--ink);margin-top:2rem}#search-results :global(article){display:grid;grid-template-columns:2rem 1fr;gap:1rem;padding:1.5rem 0;border-bottom:1px solid var(--soft-line)}#search-results :global(article>a){text-decoration:none}#search-results :global(h2){margin:.25rem 0;font-size:1.45rem;font-weight:500}#search-results :global(p){margin:.45rem 0;color:var(--muted-ink)}#search-results :global(mark){background:color-mix(in srgb,var(--accent) 18%,transparent);color:inherit}</style>
+<style>
+  .search-section {
+    max-width: var(--measure);
+    padding-bottom: 4rem;
+  }
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line-color);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .input-row:focus-within {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .input-row > :global(svg) {
+    flex-shrink: 0;
+    color: var(--muted-ink);
+  }
+  input {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font-size: 1rem;
+  }
+  .button {
+    flex-shrink: 0;
+    background: var(--soft-line);
+  }
+  #search-status {
+    font-size: 0.85rem;
+    color: var(--muted-ink);
+    margin-top: 1.25rem;
+  }
+  #search-results {
+    margin-top: 2rem;
+  }
+  #search-results :global(article) {
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--soft-line);
+  }
+  #search-results :global(article > a) {
+    text-decoration: none;
+  }
+  #search-results :global(h2) {
+    margin: 0 0 0.75rem;
+    font-size: 1.2rem;
+    font-weight: 650;
+  }
+  #search-results :global(p) {
+    margin: 0;
+    color: var(--muted-ink);
+    font-size: 0.9rem;
+  }
+</style>

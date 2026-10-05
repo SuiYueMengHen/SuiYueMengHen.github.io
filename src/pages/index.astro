@@ -1,26 +1,8 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import PrismHero from '../components/PrismHero.astro';
-import PostCard from '../components/PostCard.astro';
-import LibraryEmpty from '../components/LibraryEmpty.astro';
-import { visiblePosts } from '../lib/posts';
-import { siteConfig } from '../config/site';
-const posts=visiblePosts(await getCollection('blog'));
-const featured=posts.find((post)=>post.data.featured)||posts[0];
-const latest=posts.filter((post)=>post.id!==featured?.id).slice(0,4);
-const tags=[...new Set(posts.flatMap((post)=>post.data.tags))].slice(0,10);
+import AboutProfile from '../components/AboutProfile.astro';
 ---
+
 <BaseLayout>
-  <PrismHero />
-  {featured&&<section class="section"><div class="shell narrow"><p class="section-kicker">Editor's note</p><h2 class="section-heading">推荐阅读</h2><PostCard post={featured} featured /></div></section>}
-  <section class="section" id="latest"><div class="shell narrow"><div class="section-title"><div><p class="section-kicker">Recent papers</p><h2 class="section-heading">最近文章</h2></div><a href="/blog/">查看全部&nbsp;→</a></div><div>{posts.length?latest.map((post,index)=><PostCard post={post} index={index+1}/>):<LibraryEmpty index="Notes / 00" title="等待第一篇笔记" description="内容库已经初始化为空。下一篇文章将在这里成为 Prism Notes 的第一页。" />}</div></div></section>
-  <section class="abstract-section"><div class="shell abstract"><p class="label">摘要</p><blockquote>“写作不是给答案，而是校准观看世界的角度。”</blockquote><p>这里收集未经速食化的思考：技术背后的人、创造发生的过程，以及普通日子里值得留住的细节。</p><p class="keywords"><strong>关键词：</strong>{tags.map((tag,index)=><span><a href={`/tags/${encodeURIComponent(tag)}/`}>{tag}</a>{index===tags.length-1?'':'；'}</span>)}</p></div></section>
-  <section class="section"><div class="shell author"><div><p class="section-kicker">Author</p><h2>{siteConfig.author.name}</h2></div><div><p>{siteConfig.author.bio} 以长期主义维护这份可检索、可修订、可引用的个人笔记。</p><a href="/about/">作者简介&nbsp;→</a></div></div></section>
+  <AboutProfile />
 </BaseLayout>
-<style>
-  .narrow{max-width:var(--measure)}.section-title{display:flex;justify-content:space-between;align-items:end;gap:2rem}.section-title>a{min-height:44px;display:inline-flex;align-items:center;white-space:nowrap;font:500 .8rem var(--font-sans)}
-  .abstract-section{padding-block:clamp(4rem,9vw,7rem);border-top:1px solid var(--line-color);border-bottom:1px solid var(--line-color)}.abstract{max-width:var(--measure)}.label{font-weight:700;text-align:center}.abstract blockquote{margin:1.5rem auto;font-size:clamp(1.7rem,4vw,2.5rem);line-height:1.35;text-align:center}.abstract>p:not(.label,.keywords){text-align:justify}.keywords{margin-top:2rem;font-size:.92rem}.keywords a{text-decoration:none}
-  .author{max-width:var(--measure);display:grid;grid-template-columns:1fr 2fr;gap:3rem}.author h2{margin:0;font-size:1.8rem;font-weight:500}.author p{margin-top:0}.author a{font-family:var(--font-sans);font-size:.85rem}
-  @media(max-width:600px){.section-title{align-items:start;flex-direction:column}.author{grid-template-columns:1fr;gap:1rem}}
-</style>

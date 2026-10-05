@@ -1,42 +1,40 @@
+/* Shared semantic tokens. Keep both themes together. */
 :root {
   color-scheme: light;
-  --paper: #fbfaf6;
-  --surface: #fffefa;
-  --ink: #181816;
-  --muted-ink: #66645e;
-  --line-color: #aaa79f;
-  --soft-line: #d9d6ce;
-  --accent: #6a1b1b;
-  --focus: #8a1c1c;
-  --code-bg: #f1efe8;
-  --code-border: #c8c4ba;
-  --code-text: #25241f;
-  --spectrum-blue: #315fd1;
-  --spectrum-cyan: #138f93;
-  --spectrum-red: #a4385d;
+  --paper: #ffffff;
+  --surface: #fafafa;
+  --ink: #202124;
+  --muted-ink: #62656e;
+  --line-color: #d9dbe1;
+  --soft-line: #e8e9ed;
+  --accent: #394760;
+  --focus: #3568b0;
+  --code-bg: #f6f7f9;
+  --code-border: #d9dbe1;
+  --code-text: #202124;
   --line: 1px solid var(--line-color);
-  --font-serif: "Computer Modern Serif", "Songti SC", "STSong", "Noto Serif CJK SC", serif;
-  --font-sans: "Computer Modern Sans Serif", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: "Computer Modern Typewriter Text", "SFMono-Regular", Consolas, monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --font-serif: var(--font-sans);
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   --measure: 46rem;
-  --wide: 66rem;
+  --wide: 60rem;
+  --radius: 8px;
   --reader-font-size: 17px;
   --reader-line-height: 1.85;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --paper: #171714;
-  --surface: #1d1d19;
-  --ink: #ece9df;
-  --muted-ink: #bbb7ac;
-  --line-color: #77736a;
-  --soft-line: #3b3933;
-  --accent: #d9a3a0;
-  --focus: #f0c8c4;
-  --code-bg: #0d1117;
-  --code-border: #454b55;
-  --code-text: #f0f3f6;
-  --spectrum-blue: #7fa3ff;
-  --spectrum-cyan: #63d0d0;
-  --spectrum-red: #ee86a9;
+  --paper: #1d1e20;
+  --surface: #242528;
+  --ink: #e7e7eb;
+  --muted-ink: #adb0ba;
+  --line-color: #414348;
+  --soft-line: #34363b;
+  --accent: #c4d2ea;
+  --focus: #a5c7ff;
+  --code-bg: #242528;
+  --code-border: #414348;
+  --code-text: #e7e7eb;
 }

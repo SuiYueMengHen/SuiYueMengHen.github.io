@@ -1,21 +1,194 @@
 ---
+import { Image } from 'astro:assets';
 import type { BlogPost } from '../lib/posts';
 import { contentStats, formatDate, postSlug } from '../lib/posts';
-interface Props { post: BlogPost; index?: number; featured?: boolean; }
-const { post, index = 0, featured = false } = Astro.props;
-const slug = postSlug(post);
+import Icon from './Icon.astro';
+interface Props {
+  post: BlogPost;
+  index?: number;
+  featured?: boolean;
+}
+const { post, featured = false } = Astro.props;
+const href = `/blog/${postSlug(post)}/`;
 const stats = contentStats(post.body);
+const date = post.data.publishDate.toISOString().slice(0, 10);
 ---
-<article class:list={['post-card', { featured }]}>
-  <div class="number" aria-hidden="true">{String(index + 1).padStart(2,'0')}.</div>
+
+<article
+  class:list={['post-card', { featured, 'has-cover': !!post.data.cover }]}
+>
+  {featured && post.data.cover && (
+    <a class="cover" href={href} tabindex="-1" aria-hidden="true">
+      <Image
+        src={post.data.cover}
+        alt={post.data.coverAlt || `${post.data.title} 封面`}
+        widths={[480, 960]}
+        sizes={featured ? '(max-width: 640px) 100vw, 480px' : '120px'}
+        loading="lazy"
+      />
+    </a>
+  )}
   <div class="card-content">
-    <div class="meta"><time datetime={post.data.publishDate.toISOString()}>{formatDate(post.data.publishDate)}</time><span>·</span>{post.data.collection?<span>合集章节</span>:<a href={`/categories/${encodeURIComponent(post.data.category)}/`}>{post.data.category}</a>}<span>·</span><span>{stats.words.toLocaleString('zh-CN')} 字</span><span>·</span><span>约 {stats.minutes} 分钟</span></div>
-    <h3><a href={`/blog/${slug}/`}>{post.data.title}</a></h3>
-    <p>{post.data.description}</p>
-    <div class="card-foot"><div>{post.data.tags.slice(0,3).map((tag)=><a href={`/tags/${encodeURIComponent(tag)}/`}>#{tag}</a>)}</div><a class="read" href={`/blog/${slug}/`}>阅读全文&nbsp;→</a></div>
+    {!featured && (
+      <time class="row-date" datetime={date}>
+        {date.slice(5)}
+      </time>
+    )}
+    <div class="card-text">
+      <h3>
+        <a href={href}>{post.data.title}</a>
+      </h3>
+      <p>{post.data.description}</p>
+      <div class="meta">
+        <time datetime={date}>{formatDate(post.data.publishDate)}</time>
+        <span aria-hidden="true">·</span>
+        <span>{stats.minutes} 分钟阅读</span>
+        {post.data.collection && (
+          <a href={`/collections/${encodeURIComponent(post.data.collection)}/`}>
+            {post.data.collection}
+          </a>
+        )}
+      </div>
+      {featured && (
+        <div class="tags">
+          {post.data.tags.slice(0, 3).map((tag) => (
+            <a href={`/tags/${encodeURIComponent(tag)}/`}>{tag}</a>
+          ))}
+        </div>
+      )}
+    </div>
+    {!featured && (
+      <a class="read-arrow" href={href} aria-label={`阅读：${post.data.title}`}>
+        <Icon name="arrow" size={18} />
+      </a>
+    )}
   </div>
 </article>
 <style>
-  .post-card{display:grid;grid-template-columns:2.3rem 1fr;gap:1rem;padding:1.8rem 0;border-top:1px solid var(--soft-line)}.post-card:last-child{border-bottom:1px solid var(--soft-line)}.number{padding-top:.22rem;font-style:italic;color:var(--muted-ink)}.meta{display:flex;flex-wrap:wrap;gap:.35rem .65rem;color:var(--muted-ink);font:500 .76rem var(--font-sans)}.meta a{text-decoration:none}.post-card h3{margin:.55rem 0 .65rem;font-size:clamp(1.45rem,3vw,2rem);font-weight:500;line-height:1.2}.post-card h3 a{text-decoration:none}.post-card p{max-width:42rem;margin:.6rem 0;color:var(--muted-ink)}.card-foot{display:flex;justify-content:space-between;gap:1rem;align-items:center;margin-top:1rem;font:500 .76rem var(--font-sans)}.card-foot>div{display:flex;flex-wrap:wrap;gap:.7rem}.card-foot a{text-decoration:none}.read{white-space:nowrap}.featured{grid-template-columns:3rem 1fr;padding-block:2.2rem}.featured h3{font-size:clamp(2rem,5vw,3rem)}
-  @media(max-width:520px){.post-card,.featured{grid-template-columns:1fr}.number{display:none}.card-foot{align-items:flex-start;flex-direction:column}}
+  .post-card {
+    min-width: 0;
+    display: flex;
+    gap: 1.5rem;
+    padding: 1.5rem 0;
+    border-bottom: 1px solid var(--soft-line);
+  }
+  .cover {
+    width: 120px;
+    flex-shrink: 0;
+    align-self: center;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .cover :global(img) {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+  .card-content {
+    display: flex;
+    gap: 1.25rem;
+    align-items: baseline;
+    flex: 1;
+    min-width: 0;
+  }
+  .row-date {
+    font-size: 0.82rem;
+    color: var(--muted-ink);
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .card-text {
+    flex: 1;
+    min-width: 0;
+  }
+  h3 {
+    margin: 0;
+    font-size: 1.18rem;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+  h3 a {
+    text-decoration: none;
+  }
+  p {
+    margin: 0.5rem 0 0.75rem;
+    color: var(--muted-ink);
+    font-size: 0.9rem;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    color: var(--muted-ink);
+    font-size: 0.75rem;
+  }
+  .meta a {
+    text-decoration: none;
+  }
+  .meta a:hover {
+    text-decoration: underline;
+  }
+  .read-arrow {
+    min-width: 44px;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    align-self: center;
+  }
+  .featured {
+    display: block;
+    padding: 0;
+    border: 1px solid var(--line-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .featured .cover {
+    display: block;
+    width: auto;
+    margin: 0.75rem 0.75rem 0;
+    border-radius: 5px;
+  }
+  .featured .cover :global(img) {
+    aspect-ratio: 16 / 6;
+  }
+  .featured .card-content {
+    padding: 1.25rem;
+  }
+  .featured h3 {
+    font-size: 1.25rem;
+  }
+  .tags {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  .tags a {
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--line-color);
+    border-radius: 5px;
+    color: var(--muted-ink);
+    font-size: 0.7rem;
+    text-decoration: none;
+  }
+  @media (max-width: 600px) {
+    .post-card:not(.featured) {
+      gap: 0.8rem;
+    }
+    .post-card:not(.featured) .cover {
+      display: none;
+    }
+    .card-content {
+      gap: 0.7rem;
+    }
+    .row-date {
+      font-size: 0.75rem;
+    }
+    .read-arrow {
+      display: none;
+    }
+    h3 {
+      font-size: 1.05rem;
+    }
+  }
 </style>

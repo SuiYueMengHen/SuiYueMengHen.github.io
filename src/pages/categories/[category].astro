@@ -1,4 +1,62 @@
 ---
-import { getCollection } from 'astro:content';import BaseLayout from '../../layouts/BaseLayout.astro';import PostCard from '../../components/PostCard.astro';import categoryRegistry from '../../data/categories.json';import { categoryPosts, visiblePosts } from '../../lib/posts';export async function getStaticPaths(){const posts=visiblePosts(await getCollection('blog'));const categories=[...new Set([...categoryRegistry,...posts.filter(post=>!post.data.collection).map(post=>post.data.category)])];return categories.map(category=>({params:{category},props:{category,posts:categoryPosts(posts,category)}}))}const{category,posts}=Astro.props;
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import categoryRegistry from '../../data/categories.json';
+import { categoryPosts, visiblePosts } from '../../lib/posts';
+export async function getStaticPaths() {
+  const posts = visiblePosts(await getCollection('blog'));
+  const categories = [
+    ...new Set([
+      ...categoryRegistry,
+      ...posts
+        .filter((post) => !post.data.collection)
+        .map((post) => post.data.category),
+    ]),
+  ];
+  return categories.map((category) => ({
+    params: { category },
+    props: { category, posts: categoryPosts(posts, category) },
+  }));
+}
+const { category, posts } = Astro.props;
 ---
-<BaseLayout title={`分类：${category}`}><header class="page-head shell"><p class="section-kicker">Category / {posts.length}</p><h1 class="display">{category}</h1></header><section class="section"><div class="shell list">{posts.map((post:any,i:number)=><PostCard post={post} index={i}/>)}</div></section></BaseLayout><style>.list{max-width:var(--measure)}</style>
+
+<BaseLayout title={`分类：${category}`}>
+  <header class="page-head shell">
+    <a class="back" href="/categories/">
+      ← 全部分类
+    </a>
+    <p class="section-kicker">Category / {posts.length}</p>
+    <h1 class="display">{category}</h1>
+  </header>
+  <section class="post-list">
+    <div class="shell list">
+      {posts.map((post: any, i: number) => (
+        <PostCard post={post} index={i} />
+      ))}
+      {!posts.length && (
+        <div class="empty-state">
+          <h2>还没有收录的文章</h2>
+          <p>
+            也可以到 <a href="/blog/">Blog</a> 浏览全部笔记。
+          </p>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+<style>
+  .list {
+    padding-bottom: 4rem;
+  }
+  .back {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    font-size: 0.85rem;
+    text-decoration: none;
+    color: var(--muted-ink);
+    margin-bottom: 1rem;
+  }
+</style>

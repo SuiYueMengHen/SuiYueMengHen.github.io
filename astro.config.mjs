@@ -5,7 +5,7 @@ import { unified } from '@astrojs/markdown-remark';
 import remarkMath from 'remark-math';
 import { rehypeSourcePositions } from './src/lib/rehype-source-positions.mjs';
 import { rehypeResponsiveMedia } from './src/lib/rehype-responsive-media.mjs';
-import { rehypeClientMath } from './src/lib/rehype-client-math.mjs';
+import { rehypeStaticMath } from './src/lib/rehype-static-math.mjs';
 
 export default defineConfig({
   site: 'https://suiyuemenghen.github.io',
@@ -18,7 +18,7 @@ export default defineConfig({
       rehypePlugins: [
         rehypeSourcePositions,
         rehypeResponsiveMedia,
-        rehypeClientMath,
+        rehypeStaticMath,
       ],
     }),
     shikiConfig: {

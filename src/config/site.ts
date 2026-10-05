@@ -1,32 +1,35 @@
 export const siteConfig = {
-  name: '棱镜笔记',
-  englishName: 'Prism Notes',
+  name: 'SuiYueMengHen',
+  englishName: 'Personal Notes',
   description: '记录技术、创造与日常观察，把复杂世界折射成清晰的文字。',
   site: 'https://suiyuemenghen.github.io',
   locale: 'zh-CN',
   author: {
     name: 'SuiYueMengHen',
     bio: '记录技术、创造与日常观察。',
+    avatar: '/images/github-avatar.png',
+    tagline: '记录思考，构建有用的工具。',
+    // 从早到晚填写真实履历；空数组时显示待补充状态。
+    timeline: [{ period: '2026—现在', title: 'Wuhan University' }] as Array<{
+      period: string;
+      title: string;
+      description?: string;
+    }>,
     github: 'https://github.com/SuiYueMengHen',
     focus: ['软件与工具', '数字写作', '日常观察'],
     principles: [
       { title: '诚实', description: '只写真正经历、学习和思考过的事情。' },
       { title: '清晰', description: '不拿复杂冒充深刻，把推理过程交代完整。' },
-      { title: '长期', description: '允许文章被修订、连接，并随理解一同生长。' },
+      {
+        title: '长期',
+        description: '允许文章被修订、连接，并随理解一同生长。',
+      },
     ],
   },
-  hero: {
-    eyebrow: 'A personal journal of technology, creation & observation',
-    title: '把复杂世界，\n折射成清晰的文字。',
-    introduction: '关于技术、创造与日常观察的个人写作空间。慢一点思考，认真地记录。',
-  },
   nav: [
-    { label: '首页', href: '/' },
-    { label: '合集', href: '/blog/' },
-    { label: '分类', href: '/categories/' },
-    { label: '归档', href: '/archive/' },
-    { label: '项目', href: '/projects/' },
-    { label: '关于', href: '/about/' },
+    { label: 'About Me', href: '/' },
+    { label: 'Blog', href: '/blog/' },
+    { label: 'Projects', href: '/projects/' },
   ],
   postsPerPage: 9,
   reading: {
@@ -41,7 +44,8 @@ export const siteConfig = {
     category: 'General',
     categoryId: 'DIC_kwDOTl6_u84DCJhQ',
     themes: {
-      light: 'https://cdn.jsdelivr.net/gh/SuiYueMengHen/SuiYueMengHen.github.io@main/public/giscus-latex-light.css',
+      light:
+        'https://cdn.jsdelivr.net/gh/SuiYueMengHen/SuiYueMengHen.github.io@main/public/giscus-latex-light.css',
       dark: 'https://cdn.jsdelivr.net/gh/SuiYueMengHen/SuiYueMengHen.github.io@main/public/giscus-latex-dark.css',
     },
   },

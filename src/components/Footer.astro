@@ -1,14 +1,45 @@
 ---
 import { siteConfig } from '../config/site';
 ---
-<footer class="footer">
-  <div class="shell colophon">
-    <p class="ornament" aria-hidden="true">⁂</p>
-    <p><em>{siteConfig.name}</em> — {siteConfig.description}</p>
-    <nav aria-label="页脚导航"><a href="/rss.xml">RSS</a><span>·</span><a href={siteConfig.author.github} rel="me">GitHub</a><span>·</span><a href="/archive/">文章索引</a></nav>
-    <p class="legal">© {new Date().getFullYear()} {siteConfig.author.name} · Typeset with Computer Modern · Built with Astro</p>
-  </div>
+
+<footer class="footer shell">
+  <nav aria-label="页脚导航">
+    <a href="/rss.xml">RSS</a>
+    <a href={siteConfig.author.github} rel="me">
+      GitHub
+    </a>
+    <a href="/archive/">归档</a>
+    <a href="/categories/">分类</a>
+    <a href="/tags/">标签</a>
+  </nav>
+  <p>
+    © {new Date().getFullYear()} <a href="/">{siteConfig.author.name}</a> ·
+    Built with Astro
+  </p>
 </footer>
 <style>
-  .footer{border-top:1px solid var(--line-color);padding:4rem 0 2.5rem;text-align:center}.colophon{max-width:var(--measure)}.ornament{margin:0 0 1.5rem;font-size:1.4rem}.colophon>p:not(.legal){max-width:34rem;margin:0 auto 1.5rem}.footer nav{display:flex;justify-content:center;gap:.8rem;font:500 .8rem var(--font-sans)}.footer nav a{min-height:44px;display:inline-flex;align-items:center}.footer nav span{align-self:center}.legal{margin:2rem 0 0;color:var(--muted-ink);font:500 .68rem var(--font-sans);letter-spacing:.06em;text-transform:uppercase}
+  .footer {
+    padding-block: 2rem 2.5rem;
+    color: var(--muted-ink);
+    font-size: 0.8rem;
+    text-align: center;
+  }
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.25rem;
+  }
+  nav a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+  p {
+    margin: 0.5rem 0 0;
+  }
+  p a {
+    text-decoration: none;
+  }
 </style>

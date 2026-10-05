@@ -435,7 +435,7 @@ class Studio(QMainWindow):
         cover_row=QHBoxLayout();self.cover=QLineEdit();self.cover.setReadOnly(True);cover_choose=QPushButton('选择并裁切');cover_choose.clicked.connect(self.choose_cover);cover_clear=QPushButton('清除');cover_clear.setProperty('compact',True);cover_clear.clicked.connect(lambda:self.cover.clear());cover_row.addWidget(self.cover,1);cover_row.addWidget(cover_choose);cover_row.addWidget(cover_clear);layout.addRow('封面',cover_row)
         self.cover_alt=QLineEdit();self.cover_alt.setPlaceholderText('描述封面画面，供无障碍阅读使用');layout.addRow('封面替代文本',self.cover_alt)
         self.date=QDateEdit();self.date.setCalendarPopup(True);self.date.setDate(date.today());layout.addRow('发布日期',self.date);self.canonical=QLineEdit();layout.addRow('Canonical URL',self.canonical)
-        checks=QHBoxLayout();self.draft=QCheckBox('草稿');self.featured=QCheckBox('首页推荐');checks.addWidget(self.draft);checks.addWidget(self.featured);checks.addStretch();layout.addRow('状态',checks)
+        checks=QHBoxLayout();self.draft=QCheckBox('草稿');self.featured=QCheckBox('博客置顶');checks.addWidget(self.draft);checks.addWidget(self.featured);checks.addStretch();layout.addRow('状态',checks)
         reading_options=QWidget();reading_options_layout=QVBoxLayout(reading_options);reading_options_layout.setContentsMargins(0,0,0,0);reading_options_layout.setSpacing(2)
         self.auto_numbering=QCheckBox('自动编号章节（# 一、 / ## §1.1 / ### §1.1.1）');self.auto_numbering.setChecked(True)
         self.show_contents=QCheckBox('显示文章开头目录');self.show_contents.setChecked(True)
@@ -790,7 +790,7 @@ class Studio(QMainWindow):
             if attempt<40:return QTimer.singleShot(90,lambda:self.refresh_preview_fragment(attempt+1,generation))
             self.preview_refresh_pending=False;self.preview_status.setText('Astro 正在整理最新内容 · 画面不会回退');return QTimer.singleShot(600,self.refresh_preview_fragment)
         encoded=json.dumps(source)
-        selectors={'article':['.article-head','.book-toc','.side-toc','.prose','.article-notes','.nav-section','.related'],'project':['.page-head','.projects'],'collection':['[data-preview-kind="collection"]'],'category':['[data-preview-kind="categories"]']}[self.selected_kind]
+        selectors={'article':['.article-head','.article-cover','.book-toc','.side-toc','.prose','.article-notes','.nav-section','.related'],'project':['.page-head','.filter-bar','.projects'],'collection':['[data-preview-kind="collection"]'],'category':['[data-preview-kind="categories"]']}[self.selected_kind]
         selector_json=json.dumps(selectors);anchor=json.dumps(expected)
         script=f"""
         (()=>{{
@@ -802,9 +802,9 @@ class Studio(QMainWindow):
             let changed=0;
             const replace=(selector)=>{{
               const current=document.querySelector(selector),next=nextDoc.querySelector(selector);
-              if(current&&next){{let nodeChanged=false;if(current.className!==next.className){{current.className=next.className;nodeChanged=true;}}for(const attribute of [...current.attributes])if(!next.hasAttribute(attribute.name)){{current.removeAttribute(attribute.name);nodeChanged=true;}}for(const attribute of [...next.attributes])if(current.getAttribute(attribute.name)!==attribute.value){{current.setAttribute(attribute.name,attribute.value);nodeChanged=true;}}if(current.innerHTML!==next.innerHTML){{if(selector==='.prose')window.MathJax?.typesetClear?.([current]);current.replaceChildren(...[...next.childNodes].map(node=>document.importNode(node,true)));nodeChanged=true;}}if(nodeChanged)changed++;}}
+              if(current&&next){{let nodeChanged=false;if(current.className!==next.className){{current.className=next.className;nodeChanged=true;}}for(const attribute of [...current.attributes])if(!next.hasAttribute(attribute.name)){{current.removeAttribute(attribute.name);nodeChanged=true;}}for(const attribute of [...next.attributes])if(current.getAttribute(attribute.name)!==attribute.value){{current.setAttribute(attribute.name,attribute.value);nodeChanged=true;}}if(current.innerHTML!==next.innerHTML){{current.replaceChildren(...[...next.childNodes].map(node=>document.importNode(node,true)));nodeChanged=true;}}if(nodeChanged)changed++;}}
               else if(current&&!next){{current.remove();changed++;}}
-              else if(!current&&next){{const clone=document.importNode(next,true);if(selector==='.book-toc'||selector==='.side-toc')oldAnchor.before(clone);else oldAnchor.after(clone);changed++;}}
+              else if(!current&&next){{const clone=document.importNode(next,true);if(selector==='.article-cover')(document.querySelector('.book-toc')||oldAnchor).before(clone);else if(selector==='.book-toc'||selector==='.side-toc'||selector==='.filter-bar')oldAnchor.before(clone);else oldAnchor.after(clone);changed++;}}
             }};
             {selector_json}.forEach(replace);
             document.title=nextDoc.title||document.title;
@@ -812,8 +812,7 @@ class Studio(QMainWindow):
             window.__prismInitCategories?.();
             const patchedAnchor=document.querySelector(anchorSelector);if(!patchedAnchor)return false;
             const restorePosition=()=>scrollTo({{top:patchedAnchor.getBoundingClientRect().top+scrollY+relative,behavior:'instant'}});
-            const mathTarget=document.querySelector('.prose'),mathUpdate=mathTarget&&window.__prismTypesetMath?.(mathTarget);
-            if(mathUpdate?.then)mathUpdate.then(restorePosition);else restorePosition();
+            restorePosition();
             document.documentElement.dataset.prismPatch={json.dumps(str(generation))};
             return true;
           }}catch(error){{console.warn('Prism patch deferred',error);return false}}

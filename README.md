@@ -1,15 +1,17 @@
-# 棱镜笔记 / Prism Notes
+# SuiYueMengHen — Personal Website
 
-> 把复杂世界，折射成清晰的文字。
+> 记录思考，构建有用的工具。
 
 基于 Astro、Markdown/MDX 和 Pagefind 构建的个人静态博客，部署于 GitHub Pages。文章、合集、项目快照、图片、设置和主题源码全部保存在本仓库。
 
-站点采用极简 LaTeX 论文风格，本地打包 Computer Modern 正文字体，并通过 MathJax 4 SVG 支持行内公式与块级公式。
+站点采用统一的无衬线字体、深灰／白色双主题与简约卡片布局。首页是 About Me，博客提供置顶封面卡片、时间列表、标签筛选与搜索，项目页支持语言筛选。文章公式由 KaTeX 在构建时生成 HTML + MathML，不加载浏览器端公式引擎。
+
+使用 Node.js 24 或更新版本。依赖固定版本并通过 lockfile 安装，更新由 Dependabot 提供。
 
 ## 快速开始
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -19,6 +21,8 @@ npm run dev
 npm run check
 npm run test
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
 ## 写一篇文章
@@ -37,20 +41,22 @@ frontmatter 示例：
 
 ```yaml
 ---
-title: "文章标题"
-description: "30—80 字的文章摘要"
+title: '文章标题'
+description: '30—80 字的文章摘要'
 publishDate: 2026-07-28
 updatedDate: 2026-08-01 # 可选
-category: "设计"
-tags: ["设计", "界面"]
+category: '设计'
+tags: ['设计', '界面']
 collection: digital-garden # 可选：src/content/collections 中的 slug
 collectionOrder: 1 # 加入合集时必填，正整数且不可重复
-featured: false
+featured: false # true：在 Blog 页置顶，同时保留在时间列表中
+cover: ./cover.webp # 可选：与文章放在同一目录
+coverAlt: '封面画面说明' # 有封面时填写
 draft: true
 autoNumbering: true # 自动显示“一、 / §1.1 / §1.1.1”
 showContents: true # 显示文章开头的书籍式目录
 showSideToc: true # 显示跟随阅读位置的侧边目录
-canonical: "https://example.com/original" # 可选
+canonical: 'https://example.com/original' # 可选
 ---
 ```
 
@@ -68,16 +74,16 @@ $$
 $$
 ```
 
-公式由本地打包的 MathJax 4 渲染为 SVG，不依赖第三方 CDN；正式网页与 Prism Studio 实时预览共用同一套输出。
+公式由 KaTeX 在构建时生成 HTML 与用于辅助阅读的 MathML；CSS 和数学字体随站点本地打包，无第三方 CDN。正式网页与 Prism Studio 实时预览共用预渲染的输出，即使禁用 JavaScript 也能阅读公式。无效或不支持的 TeX 会在构建时报告错误，避免发布损坏公式。
 
-超长公式使用 MathJax 4 原生 `linebreak`，以当前正文或 APP 预览容器的实际宽度为准：公式会尽量排满当前行，接近右边界后再按 TeX 允许的断点换行。调整窗口、阅读宽度或手机/平板/桌面预览时会自动重新排版，不会通过缩小字号适配。
+超长块级公式保持字号，在自己的容器内横向滚动，不撑宽手机页面。建议使用 `aligned`、`split` 或 `gathered` 手动组织多行公式。KaTeX 不提供旧 MathJax 的实时自动断行；若迁移含高级 MathJax 宏或 `\\require` 的文章，请先确认 KaTeX 支持情况。
 
 ### 插入响应式图片
 
 单图缩放与图注：
 
 ```markdown
-![系统结构图](./architecture.webp "prism:width=72%;caption=图 1：系统结构")
+![系统结构图](./architecture.webp 'prism:width=72%;caption=图 1：系统结构')
 ```
 
 多图并排使用图库围栏，每张图都能指定自己的宽度；空间不足时会自动换行：
@@ -85,9 +91,9 @@ $$
 ```markdown
 :::gallery
 
-![输入状态](./before.webp "prism:width=48%;caption=调整前")
+![输入状态](./before.webp 'prism:width=48%;caption=调整前')
 
-![输出状态](./after.webp "prism:width=48%;caption=调整后")
+![输出状态](./after.webp 'prism:width=48%;caption=调整后')
 
 :::
 ```
@@ -102,11 +108,11 @@ Prism Studio 的“插入图片”会可视化设置替代文本、可选图注�
 - `##` 显示为“§1.1”
 - `###` 显示为“§1.1.1”
 
-文章页会同时生成书籍式目录和桌面端随文目录。两者均可点击跳转；随文目录会根据阅读位置自动高亮当前章节。
+文章页生成可展开的目录和桌面端随文目录。页内目录默认收起，让读者更快进入正文；无需 JavaScript 也能展开与跳转。随文目录会根据阅读位置自动高亮当前章节。
 
 ### 阅读设置
 
-页眉中的设置按钮允许读者调整字号、行距、版心宽度和段首缩进，选择保存在当前浏览器。页面滚动完全使用操作系统与浏览器的原生惯性，仅锚点跳转使用平滑滚动；减少动态效果模式下锚点即时跳转。全站默认值集中在 `src/config/site.ts` 的 `reading` 字段中。
+文章页的设置按钮允许读者调整字号、行距和版心宽度，选择保存在当前浏览器。页面滚动完全使用操作系统与浏览器的原生惯性，仅锚点跳转使用平滑滚动；减少动态效果模式下锚点即时跳转。全站默认值集中在 `src/config/site.ts` 的 `reading` 字段中。
 
 评论区使用两份自定义 Giscus 主题：`public/giscus-latex-light.css` 与 `public/giscus-latex-dark.css`。它们通过 jsDelivr 加载，以满足 Giscus 自定义主题的跨域要求。
 
@@ -127,13 +133,15 @@ npm run publish -- "发布：文章标题"
 
 ## 修改博客设置
 
-站点名称、作者、首页文案、导航、社交链接、评论和统计开关统一位于 [`src/config/site.ts`](src/config/site.ts)。视觉颜色与字体位于 `src/styles/tokens.css`。
+站点名称、作者简介、头像、履历时间轴、导航、社交链接、评论和统计开关统一位于 [`src/config/site.ts`](src/config/site.ts)。视觉颜色与字体位于 `src/styles/tokens.css`。首页与 `/about/` 共用 `AboutProfile` 组件；`author.timeline` 中每条填写 `period`、`title` 与可选的 `description`。项目 YAML 的 `featured: true` 决定首页精选，`order` 控制完整项目列表顺序。
+
+主题首次访问时跟随系统，切换后记住选择；在首屏绘制前初始化，减少闪烁。系统字体不需要额外字体请求。普通页面没有数学脚本，全文搜索引擎仅在搜索时加载，评论 iframe 在接近视口时加载。
 
 修改后运行 `npm run check && npm run build`，确认无误再推送。
 
 ## 合集与项目
 
-合集保存在 `src/content/collections/*.yaml`。`/blog/` 是合集书架，合集内文章只按 `collectionOrder` 排序，并完全独立于分类系统；未加入合集的文章才会进入按分类与中文标题排序的“散篇书架”。时间顺序仍可从页脚的归档入口查看。
+合集保存在 `src/content/collections/*.yaml`，入口为 `/collections/`，Blog 页也提供合集链接。`/blog/` 展示所有公开文章：`featured: true` 的文章在顶部置顶，所有文章按时间倒序展示，并支持标题／摘要／标签筛选；全文搜索位于 `/search/`。合集章节仍按 `collectionOrder` 排序，分类页继续只收录散篇；所有原有文章、合集、分类、归档和 RSS 地址保留。
 
 导入或刷新 GitHub 项目快照：
 
@@ -183,6 +191,18 @@ pyinstaller --clean --noconfirm PrismStudio.spec
 4. 在仓库 Settings → Pages 中填写域名并启用 Enforce HTTPS。
 
 项目使用用户站点仓库，不设置 Astro `base`；切换域名不需要修改内部链接。
+
+## 代码格式与验证
+
+新增或修改页面时使用 Prettier 的 Astro 插件格式化。端到端测试针对生产构建运行（`http://127.0.0.1:4322`），可覆盖 Pagefind 搜索；运行前先执行 `npm run build`。测试包含日夜模式持久化、无 JavaScript 公式与目录、项目筛选、阅读设置、旧链接及 375／768／1024／1440px 无横向溢出。
+
+```bash
+npm run format
+npm run check
+npm run test
+npm run build
+npm run test:e2e
+```
 
 ## 目录说明
 

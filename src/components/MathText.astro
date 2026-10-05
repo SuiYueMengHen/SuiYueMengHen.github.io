@@ -1,0 +1,19 @@
+---
+import { articleTocTextParts } from '../lib/article-display';
+import { inlineMathSource, renderMath } from '../lib/math.mjs';
+interface Props {
+  text: string;
+}
+const { text } = Astro.props;
+---
+
+{articleTocTextParts(text).map((part) =>
+  part.kind === 'math' ? (
+    <span
+      class="toc-inline-math math-source math-source--inline"
+      set:html={renderMath(inlineMathSource(part.value))}
+    />
+  ) : (
+    part.value
+  ),
+)}
