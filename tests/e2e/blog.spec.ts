@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const article = '/blog/函数用无穷级数和无穷乘积展开/';
+const article = '/blog/example/';
 
 test.beforeEach(async ({ page }) => {
   // Keep browser tests independent of the third-party Discussions service.
@@ -54,30 +54,32 @@ test('theme follows the system, persists across routes and reloads, and supports
   );
 });
 
-test('blog supports pinned covers, chronology, filtering and an empty-result recovery', async ({
+test('blog contains only the new example and places its cover before the title', async ({
   page,
 }) => {
   await page.goto('/blog/');
+  await expect(page.locator('.post-card')).toHaveCount(1);
+  await expect(page.locator('.post-card h2')).toHaveText('Markdown 阅读示例');
   await expect(
-    page.getByRole('heading', { name: 'Blog', exact: true }),
-  ).toBeVisible();
-  await expect(page.locator('.pinned-grid .post-card')).toHaveCount(1);
-  await expect(page.locator('.pinned-grid img')).toBeVisible();
-  await expect(page.locator('[data-chronological]')).toHaveCount(3);
-  await page.getByRole('searchbox').fill('矩阵');
-  await expect(page.locator('[data-chronological]:visible')).toHaveCount(1);
-  await expect(page.locator('.pinned-section')).toBeHidden();
-  await page.getByRole('searchbox').fill('不存在的文章 xyz');
+    page.locator('a[href^="/categories"], a[href^="/collections"]'),
+  ).toHaveCount(0);
+  await page.locator('.post-card h2 a').click();
+  await expect(page).toHaveURL(/\/blog\/example\/$/);
+  expect(
+    await page
+      .locator('.article-cover')
+      .evaluate((node) =>
+        Boolean(
+          node.compareDocumentPosition(
+            document.querySelector('.article-head')!,
+          ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      ),
+  ).toBe(true);
+  await expect(page.locator('.article-tags')).toContainText('#数学');
   await expect(
-    page.getByRole('heading', { name: '没有匹配的文章' }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: '清除筛选' }).click();
-  await expect(page.locator('[data-chronological]:visible')).toHaveCount(3);
-  await page.getByRole('button', { name: '待整理', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: '待整理', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('[data-chronological]:visible')).toHaveCount(3);
+    page.locator('.book-toc, .side-toc, .reading-settings, .giscus'),
+  ).toHaveCount(0);
 });
 
 test('project filtering works without removing home-page recommendations', async ({
@@ -95,7 +97,7 @@ test('project filtering works without removing home-page recommendations', async
   await expect(page.locator('.project-item:visible')).toHaveCount(10);
 });
 
-test('formulas and directory math are rendered before JavaScript, with readable long equations', async ({
+test('Markdown and formulas render without JavaScript and long equations stay within the mobile page', async ({
   browser,
 }) => {
   const context = await browser.newContext({
@@ -104,21 +106,19 @@ test('formulas and directory math are rendered before JavaScript, with readable 
   });
   const page = await context.newPage();
   await page.goto(article);
-  expect(await page.locator('.prose .katex').count()).toBeGreaterThan(50);
+  expect(await page.locator('.prose .katex').count()).toBe(6);
   await expect(page.locator('.prose .katex').first()).toBeVisible();
-  await expect(page.locator('.book-toc')).not.toHaveAttribute('open');
-  await page.locator('.book-toc summary').click();
   await expect(
-    page.locator('.book-toc .toc-inline-math .katex').first(),
-  ).toBeVisible();
-  expect(await page.locator('.book-toc .toc-inline-math .katex').count()).toBe(
-    2,
-  );
-  expect(await page.locator('.side-toc .toc-inline-math .katex').count()).toBe(
-    2,
-  );
-  expect(await page.locator('.katex-error, mjx-container').count()).toBe(0);
-  await expect(page.locator('script[src*="mathjax"]')).toHaveCount(0);
+    page.locator('.katex-error, mjx-container, script[src*="mathjax"]'),
+  ).toHaveCount(0);
+  await expect(page.locator('.prose pre')).toBeVisible();
+  await expect(page.locator('.prose table')).toBeVisible();
+  expect(
+    await page
+      .locator('.math-source--display')
+      .last()
+      .evaluate((node) => node.scrollWidth > node.clientWidth),
+  ).toBe(true);
   expect(
     await page.evaluate(
       () =>
@@ -126,41 +126,24 @@ test('formulas and directory math are rendered before JavaScript, with readable 
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
-  expect(
-    await page
-      .locator('.prose blockquote')
-      .first()
-      .evaluate((node) => getComputedStyle(node).fontStyle),
-  ).toBe('normal');
+  await page.getByRole('link', { name: '#数学', exact: true }).click();
+  await expect(page.locator('.post-card h2')).toHaveText('Markdown 阅读示例');
   await context.close();
-});
-
-test('reader preferences can be changed and survive an article reload', async ({
-  page,
-}) => {
-  await page.goto(article);
-  await page.getByRole('button', { name: '打开阅读设置' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('slider', { name: /正文字号/ }).fill('20');
-  await page.getByRole('button', { name: '完成', exact: true }).click();
-  await expect(page.locator('.prose')).toHaveCSS('font-size', '20px');
-  await page.reload();
-  await expect(page.locator('.prose')).toHaveCSS('font-size', '20px');
 });
 
 test('production full-text search finds existing article content', async ({
   page,
 }) => {
-  await page.goto('/search/?q=伯努利');
+  await page.goto('/search/?q=排版');
   await expect(page.locator('#search-results h2').first()).toContainText(
-    '函数用无穷级数和无穷乘积展开',
+    'Markdown 阅读示例',
   );
   await expect(page.locator('#search-status')).toContainText('找到');
   await page.getByRole('searchbox').fill('zznonexistentzzz');
   await expect(page.locator('#search-status')).toContainText('没有找到');
 });
 
-test('all existing index and article routes remain available without horizontal overflow', async ({
+test('new blog routes are responsive while removed content is absent', async ({
   page,
 }) => {
   const routes = [
@@ -169,15 +152,9 @@ test('all existing index and article routes remain available without horizontal 
     '/blog/',
     '/projects/',
     '/archive/',
-    '/categories/',
-    '/categories/微积分/',
     '/tags/',
-    '/tags/待整理/',
-    '/collections/',
-    '/collections/特殊函数概论/',
+    '/tags/数学/',
     '/search/',
-    '/blog/复数/',
-    '/blog/矩阵与方程组/',
     article,
     '/404.html',
   ];
@@ -196,6 +173,18 @@ test('all existing index and article routes remain available without horizontal 
       ).toBe(true);
     }
   }
+});
+
+test('old blogs and classification routes are removed from the production output', async () => {
+  const { existsSync } = await import('node:fs');
+  for (const path of [
+    'blog/复数',
+    'blog/矩阵与方程组',
+    'blog/函数用无穷级数和无穷乘积展开',
+    'categories',
+    'collections',
+  ])
+    expect(existsSync(`dist/${path}`), path).toBe(false);
 });
 
 test('mobile navigation can be opened, closed with Escape and followed', async ({

@@ -1,194 +1,78 @@
 ---
 import { Image } from 'astro:assets';
 import type { BlogPost } from '../lib/posts';
-import { contentStats, formatDate, postSlug } from '../lib/posts';
-import Icon from './Icon.astro';
+import { formatDate, postSlug } from '../lib/posts';
 interface Props {
   post: BlogPost;
-  index?: number;
-  featured?: boolean;
 }
-const { post, featured = false } = Astro.props;
+const { post } = Astro.props;
 const href = `/blog/${postSlug(post)}/`;
-const stats = contentStats(post.body);
-const date = post.data.publishDate.toISOString().slice(0, 10);
 ---
 
-<article
-  class:list={['post-card', { featured, 'has-cover': !!post.data.cover }]}
->
-  {featured && post.data.cover && (
-    <a class="cover" href={href} tabindex="-1" aria-hidden="true">
+<article class="post-card">
+  {post.data.cover && (
+    <a class="post-cover" href={href} tabindex="-1" aria-hidden="true">
       <Image
         src={post.data.cover}
-        alt={post.data.coverAlt || `${post.data.title} 封面`}
-        widths={[480, 960]}
-        sizes={featured ? '(max-width: 640px) 100vw, 480px' : '120px'}
+        alt={post.data.coverAlt || ''}
+        widths={[640, 960]}
+        sizes="(max-width: 760px) 100vw, 720px"
         loading="lazy"
       />
     </a>
   )}
-  <div class="card-content">
-    {!featured && (
-      <time class="row-date" datetime={date}>
-        {date.slice(5)}
-      </time>
-    )}
-    <div class="card-text">
-      <h3>
-        <a href={href}>{post.data.title}</a>
-      </h3>
-      <p>{post.data.description}</p>
-      <div class="meta">
-        <time datetime={date}>{formatDate(post.data.publishDate)}</time>
-        <span aria-hidden="true">·</span>
-        <span>{stats.minutes} 分钟阅读</span>
-        {post.data.collection && (
-          <a href={`/collections/${encodeURIComponent(post.data.collection)}/`}>
-            {post.data.collection}
-          </a>
-        )}
-      </div>
-      {featured && (
-        <div class="tags">
-          {post.data.tags.slice(0, 3).map((tag) => (
-            <a href={`/tags/${encodeURIComponent(tag)}/`}>{tag}</a>
-          ))}
-        </div>
-      )}
-    </div>
-    {!featured && (
-      <a class="read-arrow" href={href} aria-label={`阅读：${post.data.title}`}>
-        <Icon name="arrow" size={18} />
-      </a>
-    )}
+  <h2>
+    <a href={href}>{post.data.title}</a>
+  </h2>
+  {post.data.description && <p>{post.data.description}</p>}
+  <div class="post-meta">
+    <time datetime={post.data.publishDate.toISOString()}>
+      {formatDate(post.data.publishDate)}
+    </time>
+    {post.data.draft && <span>草稿</span>}
+    {post.data.tags.map((tag) => (
+      <a href={`/tags/${encodeURIComponent(tag)}/`}>#{tag}</a>
+    ))}
   </div>
 </article>
 <style>
   .post-card {
-    min-width: 0;
-    display: flex;
-    gap: 1.5rem;
-    padding: 1.5rem 0;
+    padding: 2rem 0;
     border-bottom: 1px solid var(--soft-line);
   }
-  .cover {
-    width: 120px;
-    flex-shrink: 0;
-    align-self: center;
+  .post-cover {
+    display: block;
+    margin-bottom: 1.5rem;
     border-radius: 6px;
     overflow: hidden;
   }
-  .cover :global(img) {
+  .post-cover :global(img) {
     width: 100%;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 7;
     object-fit: cover;
   }
-  .card-content {
-    display: flex;
-    gap: 1.25rem;
-    align-items: baseline;
-    flex: 1;
-    min-width: 0;
-  }
-  .row-date {
-    font-size: 0.82rem;
-    color: var(--muted-ink);
-    flex-shrink: 0;
-    font-variant-numeric: tabular-nums;
-  }
-  .card-text {
-    flex: 1;
-    min-width: 0;
-  }
-  h3 {
+  h2 {
+    font-size: 1.45rem;
     margin: 0;
-    font-size: 1.18rem;
     font-weight: 650;
     overflow-wrap: anywhere;
   }
-  h3 a {
+  h2 a {
     text-decoration: none;
   }
   p {
-    margin: 0.5rem 0 0.75rem;
+    margin: 0.75rem 0 0;
     color: var(--muted-ink);
-    font-size: 0.9rem;
   }
-  .meta {
+  .post-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem 0.75rem;
-    color: var(--muted-ink);
-    font-size: 0.75rem;
-  }
-  .meta a {
-    text-decoration: none;
-  }
-  .meta a:hover {
-    text-decoration: underline;
-  }
-  .read-arrow {
-    min-width: 44px;
-    min-height: 44px;
-    display: grid;
-    place-items: center;
-    align-self: center;
-  }
-  .featured {
-    display: block;
-    padding: 0;
-    border: 1px solid var(--line-color);
-    border-radius: var(--radius);
-    overflow: hidden;
-    background: var(--surface);
-  }
-  .featured .cover {
-    display: block;
-    width: auto;
-    margin: 0.75rem 0.75rem 0;
-    border-radius: 5px;
-  }
-  .featured .cover :global(img) {
-    aspect-ratio: 16 / 6;
-  }
-  .featured .card-content {
-    padding: 1.25rem;
-  }
-  .featured h3 {
-    font-size: 1.25rem;
-  }
-  .tags {
-    display: flex;
-    gap: 0.5rem;
+    gap: 0.5rem 1rem;
     margin-top: 1rem;
-  }
-  .tags a {
-    padding: 0.2rem 0.5rem;
-    border: 1px solid var(--line-color);
-    border-radius: 5px;
     color: var(--muted-ink);
-    font-size: 0.7rem;
-    text-decoration: none;
+    font-size: 0.8rem;
   }
-  @media (max-width: 600px) {
-    .post-card:not(.featured) {
-      gap: 0.8rem;
-    }
-    .post-card:not(.featured) .cover {
-      display: none;
-    }
-    .card-content {
-      gap: 0.7rem;
-    }
-    .row-date {
-      font-size: 0.75rem;
-    }
-    .read-arrow {
-      display: none;
-    }
-    h3 {
-      font-size: 1.05rem;
-    }
+  .post-meta a {
+    text-decoration: none;
   }
 </style>
