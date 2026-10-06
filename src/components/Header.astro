@@ -4,7 +4,7 @@ import Icon from './Icon.astro';
 const path = Astro.url.pathname;
 const active = (href: string) =>
   href === '/'
-    ? path === '/' || path.startsWith('/about')
+    ? path === '/'
     : href === '/blog/'
       ? /^\/(blog|tags|archive|search)(\/|$)/.test(path)
       : path.startsWith(href);
@@ -66,6 +66,8 @@ const active = (href: string) =>
     dispatchEvent(new CustomEvent('prism-theme-change', { detail: { theme } }));
   };
   document.querySelector('#theme-toggle')?.addEventListener('click', () => {
+    root.classList.add('theme-changing');
+    window.setTimeout(() => root.classList.remove('theme-changing'), 260);
     root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
     try {
       localStorage.setItem('prism-theme', root.dataset.theme);
@@ -148,13 +150,29 @@ const active = (href: string) =>
     position: relative;
     white-space: nowrap;
   }
-  nav a[aria-current='page']::after {
+  nav a::after {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     bottom: 3px;
     border-top: 2px solid var(--muted-ink);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.2s ease;
+  }
+  nav a:hover::after,
+  nav a:focus-visible::after,
+  nav a[aria-current='page']::after {
+    transform: scaleX(1);
+  }
+  nav a {
+    transition:
+      color 0.18s ease,
+      transform 0.18s ease;
+  }
+  nav a:hover {
+    transform: translateY(-1px);
   }
   .header-actions {
     display: flex;
@@ -169,18 +187,38 @@ const active = (href: string) =>
     border-radius: 6px;
     background: transparent;
     color: var(--ink);
+    transition:
+      background 0.18s ease,
+      transform 0.18s ease;
   }
   .icon-button:hover {
     background: var(--surface);
   }
+  .sun,
+  .moon {
+    grid-area: 1 / 1;
+    transition:
+      opacity 0.22s ease,
+      transform 0.22s ease;
+  }
   .sun {
-    display: none;
+    opacity: 0;
+    transform: rotate(-65deg) scale(0.65);
+  }
+  .moon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
   }
   :global([data-theme='dark']) .sun {
-    display: block;
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
   }
   :global([data-theme='dark']) .moon {
-    display: none;
+    opacity: 0;
+    transform: rotate(65deg) scale(0.65);
+  }
+  .icon-button:active {
+    transform: scale(0.92);
   }
   .menu-button {
     display: none;
@@ -211,15 +249,26 @@ const active = (href: string) =>
     }
     nav.is-open {
       display: flex;
+      animation: menu-enter 0.18s ease both;
     }
     nav a {
       justify-items: start;
       padding-inline: 1rem;
     }
-    nav a[aria-current='page']::after {
+    nav a::after {
       left: 1rem;
       right: auto;
       width: 2rem;
+    }
+  }
+  @keyframes menu-enter {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 </style>

@@ -27,9 +27,10 @@ export const siteConfig = {
     ],
   },
   nav: [
-    { label: 'About Me', href: '/' },
+    { label: 'Home', href: '/' },
     { label: 'Blog', href: '/blog/' },
     { label: 'Projects', href: '/projects/' },
+    { label: 'About Me', href: '/about/' },
   ],
   comments: {
     enabled: true,

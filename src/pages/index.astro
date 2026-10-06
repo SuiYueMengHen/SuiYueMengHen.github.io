@@ -1,8 +1,81 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import AboutProfile from '../components/AboutProfile.astro';
+import Icon from '../components/Icon.astro';
+import { siteConfig } from '../config/site';
+const { author } = siteConfig;
 ---
 
-<BaseLayout>
-  <AboutProfile />
+<BaseLayout title="Home">
+  <section class="home-profile shell" aria-label="个人主页">
+    <img
+      src={author.avatar}
+      alt={`${author.name} 的 GitHub 头像`}
+      width="144"
+      height="144"
+      fetchpriority="high"
+    />
+    <h1>{author.name}</h1>
+    <a
+      class="github-link"
+      href={author.github}
+      rel="me"
+      aria-label={`访问 ${author.name} 的 GitHub`}
+    >
+      <Icon name="github" size={22} />
+      <span>GitHub</span>
+      <span aria-hidden="true">↗</span>
+    </a>
+  </section>
 </BaseLayout>
+<style>
+  .home-profile {
+    min-height: calc(100svh - 240px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding-block: 4rem 5rem;
+  }
+  img {
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  h1 {
+    margin: 1.75rem 0 1rem;
+    font-size: clamp(2rem, 5vw, 2.7rem);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .github-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 44px;
+    padding-inline: 0.8rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    color: var(--muted-ink);
+    text-decoration: none;
+    transition:
+      color 0.18s ease,
+      background 0.18s ease,
+      transform 0.18s ease;
+  }
+  .github-link:hover {
+    color: var(--ink);
+    background: var(--surface);
+    transform: translateY(-2px);
+  }
+  @media (max-width: 760px) {
+    img {
+      width: 124px;
+      height: 124px;
+    }
+    .home-profile {
+      min-height: calc(100svh - 230px);
+    }
+  }
+</style>

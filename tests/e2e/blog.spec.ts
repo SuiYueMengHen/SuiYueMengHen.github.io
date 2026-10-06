@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('https://giscus.app/**', (route) => route.abort());
 });
 
-test('About Me uses the real avatar, education timeline and selected project links', async ({
+test('Home is minimal and About Me uses the real avatar, education timeline and selected project links', async ({
   page,
 }) => {
   await page.goto('/');
@@ -17,6 +17,20 @@ test('About Me uses the real avatar, education timeline and selected project lin
   await expect(
     page.getByRole('img', { name: 'SuiYueMengHen 的 GitHub 头像' }),
   ).toBeVisible();
+  await expect(page.locator('.project-card')).toHaveCount(0);
+  await expect(page.locator('#site-nav a')).toHaveText([
+    'Home',
+    'Blog',
+    'Projects',
+    'About Me',
+  ]);
+  const menu = page.getByRole('button', { name: '打开菜单' });
+  if (await menu.isVisible()) await menu.click();
+  await page
+    .locator('#site-nav')
+    .getByRole('link', { name: 'About Me', exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/about\/$/);
   await expect(
     page.getByRole('heading', { name: 'Wuhan University' }),
   ).toBeVisible();
@@ -27,7 +41,7 @@ test('About Me uses the real avatar, education timeline and selected project lin
       .locator('.project-card')
       .getByRole('link', { name: 'arxiv-physics', exact: true }),
   ).toHaveAttribute('href', 'https://github.com/SuiYueMengHen/arxiv-physics');
-  for (const label of ['About Me', 'Blog', 'Projects'])
+  for (const label of ['Home', 'Blog', 'Projects', 'About Me'])
     await expect(page.locator('#site-nav a', { hasText: label })).toHaveCount(
       1,
     );

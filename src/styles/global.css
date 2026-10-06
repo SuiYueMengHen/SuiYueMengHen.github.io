@@ -277,3 +277,67 @@ h4 {
   vertical-align: middle;
   padding-block: 0.15em;
 }
+
+/* Progressive enhancement: native navigation retains all browser behavior. */
+#main-content {
+  view-transition-name: page-content;
+}
+.motion-enabled #main-content {
+  animation: page-enter 0.24s ease-out both;
+}
+.site-header {
+  view-transition-name: site-navigation;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(page-content) {
+  animation: page-leave 0.14s ease-in both;
+}
+::view-transition-new(page-content) {
+  animation: page-enter 0.24s ease-out both;
+}
+::view-transition-old(site-navigation),
+::view-transition-new(site-navigation) {
+  animation-duration: 0.18s;
+}
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes page-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+.theme-changing body,
+.theme-changing .site-header,
+.theme-changing .footer,
+.theme-changing .project-card,
+.theme-changing .post-card {
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+  .motion-enabled #main-content {
+    animation: none;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
