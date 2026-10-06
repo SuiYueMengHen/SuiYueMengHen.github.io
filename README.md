@@ -1,6 +1,6 @@
 # SuiYueMengHen — Personal Website
 
-Astro 静态个人网站，包含 About Me、Blog 与 Projects，部署于 GitHub Pages。使用 Node.js 24，执行 `npm ci` 安装固定版本依赖。
+Astro 静态个人网站，包含 Home、Blog、Projects 与 About Me，部署于 GitHub Pages。使用 Node.js 24，执行 `npm ci` 安装固定版本依赖。
 
 ```bash
 npm run dev
@@ -81,3 +81,7 @@ npm run test:e2e
 ```
 
 网站代码采用 MIT License。文章与图片版权归作者所有。
+
+## Home 与 About Me
+
+Home 仅展示头像、名字和 GitHub 链接。导航中的 About Me 位于最右侧，进入 `/about/` 查看完整简介、履历和精选项目。桌面采用左侧个人信息、右侧主要内容的双栏布局；手机上自然叠放。导航与主题切换使用短时动效，页面使用原生跨文档 View Transition，不支持的浏览器使用轻微入场动效。系统开启减少动态效果时关闭动画。
