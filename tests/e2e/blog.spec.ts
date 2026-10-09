@@ -37,7 +37,7 @@ test('Home is minimal and About Me uses the real avatar, education timeline and 
     }),
   ).toBeVisible();
   await expect(page.locator('.timeline')).toContainText('2026—现在');
-  await expect(page.locator('.research-interests')).toContainText([
+  await expect(page.locator('.research-interests li')).toHaveText([
     '量子光学',
     '非厄米物理',
   ]);
