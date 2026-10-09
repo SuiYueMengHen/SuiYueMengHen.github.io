@@ -32,9 +32,15 @@ test('Home is minimal and About Me uses the real avatar, education timeline and 
     .click();
   await expect(page).toHaveURL(/\/about\/$/);
   await expect(
-    page.getByRole('heading', { name: 'Wuhan University' }),
+    page.getByRole('heading', {
+      name: 'Wuhan University (School of Physics and Technology)',
+    }),
   ).toBeVisible();
   await expect(page.locator('.timeline')).toContainText('2026—现在');
+  await expect(page.locator('.research-interests')).toContainText([
+    '量子光学',
+    '非厄米物理',
+  ]);
   await expect(page.locator('.project-card')).toHaveCount(2);
   await expect(
     page
@@ -68,16 +74,20 @@ test('theme follows the system, persists across routes and reloads, and supports
   );
 });
 
-test('blog contains only the new example and places its cover before the title', async ({
+test('blog lists the published notes and keeps the example cover before its title', async ({
   page,
 }) => {
   await page.goto('/blog/');
-  await expect(page.locator('.post-card')).toHaveCount(1);
-  await expect(page.locator('.post-card h2')).toHaveText('Markdown 阅读示例');
+  await expect(page.locator('.post-card')).toHaveCount(3);
+  await expect(
+    page.locator('.post-card h2', { hasText: 'Markdown 阅读示例' }),
+  ).toHaveCount(1);
   await expect(
     page.locator('a[href^="/categories"], a[href^="/collections"]'),
   ).toHaveCount(0);
-  await page.locator('.post-card h2 a').click();
+  await page
+    .locator('.post-card h2 a', { hasText: 'Markdown 阅读示例' })
+    .click();
   await expect(page).toHaveURL(/\/blog\/example\/$/);
   expect(
     await page
@@ -100,15 +110,14 @@ test('project filtering works without removing home-page recommendations', async
   page,
 }) => {
   await page.goto('/projects/');
-  await expect(page.locator('.project-card')).toHaveCount(10);
+  await expect(page.locator('.project-card')).toHaveCount(6);
   await page.getByRole('button', { name: 'TeX', exact: true }).click();
-  await expect(page.locator('.project-item:visible')).toHaveCount(2);
+  await expect(page.locator('.project-item:visible')).toHaveCount(1);
   await expect(page.locator('.project-item:visible')).toContainText([
-    'GaokaoTeX',
     'cntextbook',
   ]);
   await page.getByRole('button', { name: '全部', exact: true }).click();
-  await expect(page.locator('.project-item:visible')).toHaveCount(10);
+  await expect(page.locator('.project-item:visible')).toHaveCount(6);
 });
 
 test('Markdown and formulas render without JavaScript and long equations stay within the mobile page', async ({
@@ -141,7 +150,9 @@ test('Markdown and formulas render without JavaScript and long equations stay wi
     ),
   ).toBe(true);
   await page.getByRole('link', { name: '#数学', exact: true }).click();
-  await expect(page.locator('.post-card h2')).toHaveText('Markdown 阅读示例');
+  await expect(
+    page.locator('.post-card h2', { hasText: 'Markdown 阅读示例' }),
+  ).toHaveCount(1);
   await context.close();
 });
 
@@ -220,3 +231,35 @@ test('mobile navigation can be opened, closed with Escape and followed', async (
     .click();
   await expect(page).toHaveURL(/\/blog\/$/);
 });
+
+for (const slug of [
+  'qm-notes-1-sets-relations-functions',
+  'qm-notes-2-algebraic-structures',
+]) {
+  test(`published quantum note ${slug} renders formulas and text without JavaScript`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      viewport: { width: 375, height: 812 },
+    });
+    const page = await context.newPage();
+    await page.goto(`/blog/${slug}/`);
+    await expect(page.locator('.article-head h1')).toContainText(
+      '量子力学笔记',
+    );
+    expect(await page.locator('.prose .katex').count()).toBeGreaterThan(20);
+    await expect(page.locator('.katex-error')).toHaveCount(0);
+    await expect(page.locator('.prose')).toContainText(
+      slug.includes('notes-1') ? '延拓' : '域同态',
+    );
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await context.close();
+  });
+}

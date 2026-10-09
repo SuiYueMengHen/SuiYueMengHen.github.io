@@ -2,11 +2,13 @@ repo: "SuiYueMengHen/ClearScan"
 title: "ClearScan"
 description: "注重隐私的 Android 文档扫描工具，支持透视校正、PDF 与离线翻译。"
 language: "Kotlin"
-stars: 0
+stars: 1
 forks: 0
 license: "MIT"
-topics: ["android", "documents", "jetpack-compose", "kotlin", "privacy", "scanner"]
+topics: ["android","documents","jetpack-compose","kotlin","privacy","scanner"]
 homepage: null
 featured: false
 order: 2
-syncedAt: "2026-08-04T01:20:48.954100+00:00"
+pinned: true
+pinnedOrder: 2
+syncedAt: "2026-10-09T12:22:41.981Z"

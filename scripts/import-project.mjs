@@ -40,6 +40,8 @@ const yaml = [
   `homepage: ${data.homepage ? quote(data.homepage) : 'null'}`,
   `featured: ${get('featured', 'false')}`,
   `order: ${get('order', '100')}`,
+  `pinned: ${get('pinned', 'false')}`,
+  ...(get('pinnedOrder', '') ? [`pinnedOrder: ${get('pinnedOrder', '')}`] : []),
   `syncedAt: ${quote(new Date().toISOString())}`,
   '',
 ].join('\n');

@@ -2,8 +2,9 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ProjectCard from '../../components/ProjectCard.astro';
-import { sortedProjects } from '../../lib/posts';
-const projects = sortedProjects(await getCollection('projects'));
+const projects = (await getCollection('projects'))
+  .filter((project) => project.data.pinned)
+  .sort((a, b) => (a.data.pinnedOrder ?? 100) - (b.data.pinnedOrder ?? 100));
 const languages = [
   ...new Set(projects.map((project) => project.data.language).filter(Boolean)),
 ] as string[];
@@ -15,7 +16,7 @@ const languages = [
 >
   <header class="page-head shell">
     <h1 class="display">Projects</h1>
-    <p>一些持续打磨的开源项目。</p>
+    <p>我在 GitHub 上置顶的开源项目。</p>
   </header>
   <div class="shell projects-page">
     <div class="filter-bar" role="group" aria-label="按项目语言筛选">

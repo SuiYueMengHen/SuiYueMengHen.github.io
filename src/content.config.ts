@@ -34,6 +34,8 @@ const projects = defineCollection({
     coverAlt: z.string().trim().optional(),
     featured: z.boolean().default(false),
     order: z.number().int().nonnegative().default(100),
+    pinned: z.boolean().default(false),
+    pinnedOrder: z.number().int().nonnegative().optional(),
     syncedAt: z.coerce.date(),
   }),
 });

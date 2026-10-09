@@ -2,11 +2,13 @@ repo: "SuiYueMengHen/arxiv-physics"
 title: "arxiv-physics"
 description: "物理论文阅读与本地文献管理，支持 PDF、Markdown 和手动翻译。"
 language: "Kotlin"
-stars: 0
+stars: 1
 forks: 0
 license: null
 topics: []
 homepage: null
 featured: true
 order: 1
-syncedAt: "2026-10-05T08:55:20.676678+00:00"
+pinned: true
+pinnedOrder: 5
+syncedAt: "2026-10-09T12:22:41.981Z"

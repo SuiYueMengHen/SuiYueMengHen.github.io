@@ -5,8 +5,10 @@ language: "TeX"
 stars: 0
 forks: 0
 license: "MIT"
-topics: ["chinese", "education", "latex", "template", "tex"]
+topics: ["chinese","education","latex","template","tex"]
 homepage: null
 featured: false
 order: 6
-syncedAt: "2026-10-05T08:55:20.677523+00:00"
+pinned: true
+pinnedOrder: 4
+syncedAt: "2026-10-09T12:22:41.981Z"

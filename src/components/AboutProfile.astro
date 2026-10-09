@@ -6,7 +6,7 @@ import ProjectCard from './ProjectCard.astro';
 import Icon from './Icon.astro';
 const projects = sortedProjects(await getCollection('projects'))
   .filter((project) => project.data.featured)
-  .slice(0, 4);
+  .slice(0, 2);
 const { author } = siteConfig;
 ---
 
@@ -40,6 +40,16 @@ const { author } = siteConfig;
       <p class="muted">
         这里是我的公开笔记与开源项目。记录学习中的思考，也分享持续打磨的工具。
       </p>
+    </section>
+    <section class="profile-section" aria-labelledby="research-title">
+      <h2 id="research-title">
+        研究方向 <span>Research Interests</span>
+      </h2>
+      <ul class="research-interests">
+        {author.research.map((direction) => (
+          <li>{direction}</li>
+        ))}
+      </ul>
     </section>
     <section class="profile-section" aria-labelledby="experience-title">
       <h2 id="experience-title">
@@ -147,6 +157,13 @@ const { author } = siteConfig;
     font-weight: 400;
     color: var(--muted-ink);
     letter-spacing: 0;
+  }
+  .research-interests {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2rem;
+    margin: 0;
+    padding-left: 1.2rem;
   }
   .bio {
     margin: 0 0 0.5rem;
