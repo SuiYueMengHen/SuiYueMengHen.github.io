@@ -85,3 +85,13 @@ npm run test:e2e
 ## Home 与 About Me
 
 Home 仅展示头像、名字和 GitHub 链接。导航中的 About Me 位于最右侧，进入 `/about/` 查看完整简介、履历和精选项目。桌面采用左侧个人信息、右侧主要内容的双栏布局；手机上自然叠放。导航与主题切换使用短时动效，页面使用原生跨文档 View Transition，不支持的浏览器使用轻微入场动效。系统开启减少动态效果时关闭动画。
+
+## GitHub 置顶项目
+
+Projects 页面只展示 GitHub pinned repositories，并按 GitHub 置顶顺序排列；About Me 的两个精选项目继续由 `featured` 与 `order` 独立控制。通过已登录的 gh 更新置顶快照：
+
+```bash
+npm run project:sync-pinned
+```
+
+将生成的 YAML 提交发布后网站更新。浏览页面与构建阶段无需访问 GitHub 或暴露凭据。

@@ -5,8 +5,10 @@ language: "Python"
 stars: 1
 forks: 0
 license: "MIT"
-topics: ["bilibili", "desktop-app", "downloader", "python"]
+topics: ["bilibili","desktop-app","downloader","python"]
 homepage: null
 featured: false
 order: 9
-syncedAt: "2026-08-04T01:19:34.237216+00:00"
+pinned: true
+pinnedOrder: 1
+syncedAt: "2026-10-09T12:22:41.981Z"

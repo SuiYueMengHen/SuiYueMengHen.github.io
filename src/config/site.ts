@@ -10,12 +10,18 @@ export const siteConfig = {
     avatar: '/images/github-avatar.png',
     tagline: '记录思考，构建有用的工具。',
     // 从早到晚填写真实履历；空数组时显示待补充状态。
-    timeline: [{ period: '2026—现在', title: 'Wuhan University' }] as Array<{
+    timeline: [
+      {
+        period: '2026—现在',
+        title: 'Wuhan University (School of Physics and Technology)',
+      },
+    ] as Array<{
       period: string;
       title: string;
       description?: string;
     }>,
     github: 'https://github.com/SuiYueMengHen',
+    research: ['量子光学', '非厄米物理'],
     focus: ['软件与工具', '数字写作', '日常观察'],
     principles: [
       { title: '诚实', description: '只写真正经历、学习和思考过的事情。' },

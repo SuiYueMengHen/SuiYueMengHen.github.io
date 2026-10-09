@@ -21,7 +21,8 @@
     "studio": "python3 tools/prism-studio/app.py",
     "publish": "node scripts/publish.mjs",
     "format": "prettier --write src scripts tests astro.config.mjs playwright.config.ts README.md",
-    "format:check": "prettier --check src scripts tests astro.config.mjs playwright.config.ts README.md"
+    "format:check": "prettier --check src scripts tests astro.config.mjs playwright.config.ts README.md",
+    "project:sync-pinned": "node scripts/sync-pinned-projects.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "7.0.4",
