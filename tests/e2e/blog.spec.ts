@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const article = '/blog/example/';
+const article = '/blog/qm-notes-1-sets-relations-functions/';
 
 test.beforeEach(async ({ page }) => {
   // Keep browser tests independent of the third-party Discussions service.
@@ -74,35 +74,15 @@ test('theme follows the system, persists across routes and reloads, and supports
   );
 });
 
-test('blog lists the published notes and keeps the example cover before its title', async ({
-  page,
-}) => {
+test('blog lists only the two published notes', async ({ page }) => {
   await page.goto('/blog/');
-  await expect(page.locator('.post-card')).toHaveCount(3);
+  await expect(page.locator('.post-card')).toHaveCount(2);
+  await expect(page.locator('.post-card h2')).toContainText([
+    '量子力学笔记（一）',
+    '量子力学笔记（二）',
+  ]);
   await expect(
-    page.locator('.post-card h2', { hasText: 'Markdown 阅读示例' }),
-  ).toHaveCount(1);
-  await expect(
-    page.locator('a[href^="/categories"], a[href^="/collections"]'),
-  ).toHaveCount(0);
-  await page
-    .locator('.post-card h2 a', { hasText: 'Markdown 阅读示例' })
-    .click();
-  await expect(page).toHaveURL(/\/blog\/example\/$/);
-  expect(
-    await page
-      .locator('.article-cover')
-      .evaluate((node) =>
-        Boolean(
-          node.compareDocumentPosition(
-            document.querySelector('.article-head')!,
-          ) & Node.DOCUMENT_POSITION_FOLLOWING,
-        ),
-      ),
-  ).toBe(true);
-  await expect(page.locator('.article-tags')).toContainText('#数学');
-  await expect(
-    page.locator('.book-toc, .side-toc, .reading-settings, .giscus'),
+    page.getByRole('link', { name: 'Markdown 阅读示例' }),
   ).toHaveCount(0);
 });
 
@@ -120,48 +100,12 @@ test('project filtering works without removing home-page recommendations', async
   await expect(page.locator('.project-item:visible')).toHaveCount(6);
 });
 
-test('Markdown and formulas render without JavaScript and long equations stay within the mobile page', async ({
-  browser,
-}) => {
-  const context = await browser.newContext({
-    javaScriptEnabled: false,
-    viewport: { width: 375, height: 812 },
-  });
-  const page = await context.newPage();
-  await page.goto(article);
-  expect(await page.locator('.prose .katex').count()).toBe(6);
-  await expect(page.locator('.prose .katex').first()).toBeVisible();
-  await expect(
-    page.locator('.katex-error, mjx-container, script[src*="mathjax"]'),
-  ).toHaveCount(0);
-  await expect(page.locator('.prose pre')).toBeVisible();
-  await expect(page.locator('.prose table')).toBeVisible();
-  expect(
-    await page
-      .locator('.math-source--display')
-      .last()
-      .evaluate((node) => node.scrollWidth > node.clientWidth),
-  ).toBe(true);
-  expect(
-    await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth <=
-        document.documentElement.clientWidth,
-    ),
-  ).toBe(true);
-  await page.getByRole('link', { name: '#数学', exact: true }).click();
-  await expect(
-    page.locator('.post-card h2', { hasText: 'Markdown 阅读示例' }),
-  ).toHaveCount(1);
-  await context.close();
-});
-
 test('production full-text search finds existing article content', async ({
   page,
 }) => {
-  await page.goto('/search/?q=排版');
+  await page.goto('/search/?q=笛卡儿积');
   await expect(page.locator('#search-results h2').first()).toContainText(
-    'Markdown 阅读示例',
+    '量子力学笔记（一）',
   );
   await expect(page.locator('#search-status')).toContainText('找到');
   await page.getByRole('searchbox').fill('zznonexistentzzz');
@@ -178,7 +122,7 @@ test('new blog routes are responsive while removed content is absent', async ({
     '/projects/',
     '/archive/',
     '/tags/',
-    '/tags/数学/',
+    '/tags/数学基础/',
     '/search/',
     article,
     '/404.html',
@@ -203,6 +147,8 @@ test('new blog routes are responsive while removed content is absent', async ({
 test('old blogs and classification routes are removed from the production output', async () => {
   const { existsSync } = await import('node:fs');
   for (const path of [
+    'blog/example',
+    'tags/Markdown',
     'blog/复数',
     'blog/矩阵与方程组',
     'blog/函数用无穷级数和无穷乘积展开',
