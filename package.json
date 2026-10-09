@@ -28,7 +28,7 @@
     "@astrojs/mdx": "7.0.4",
     "@astrojs/rss": "4.0.19",
     "@astrojs/sitemap": "3.7.3",
-    "astro": "7.1.4",
+    "astro": "7.3.5",
     "hast-util-from-html": "2.0.3",
     "katex": "0.19.0",
     "pagefind": "1.5.2",
