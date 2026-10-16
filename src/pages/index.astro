@@ -15,6 +15,9 @@ const { author } = siteConfig;
       fetchpriority="high"
     />
     <h1>{author.name}</h1>
+    <p class="motto" lang="en">
+      AI should just be a tool, not a science.
+    </p>
     <a
       class="github-link"
       href={author.github}
@@ -48,6 +51,14 @@ const { author } = siteConfig;
     font-size: clamp(2rem, 5vw, 2.7rem);
     font-weight: 700;
     overflow-wrap: anywhere;
+  }
+  .motto {
+    max-width: 30rem;
+    margin: 0 0 1rem;
+    color: var(--muted-ink);
+    font-size: 1rem;
+    line-height: 1.7;
+    text-wrap: balance;
   }
   .github-link {
     display: inline-flex;
